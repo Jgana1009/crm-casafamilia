@@ -291,10 +291,21 @@ function parseRows(rows: any[]): any[] {
   }).filter(c => c.nombre);
 }
 
-function ImportModal({ onClose, onImport, importing }: { onClose: () => void; onImport: (rows: any[]) => void; importing: boolean }) {
+function isDuplicate(row: any, existing: any[]): string|null {
+  const name = (row.nombre||"").toLowerCase().trim();
+  const email = (row.email||"").toLowerCase().trim();
+  for (const c of existing) {
+    if ((c.nombre||"").toLowerCase().trim() === name) return "Mismo nombre";
+    if (email && (c.email||"").toLowerCase().trim() === email) return "Mismo email";
+  }
+  return null;
+}
+
+function ImportModal({ onClose, onImport, importing, existingContacts }: { onClose: () => void; onImport: (rows: any[]) => void; importing: boolean; existingContacts: any[] }) {
   const [rows, setRows] = useState<any[]>([]);
   const [fileName, setFileName] = useState("");
   const [err, setErr] = useState("");
+  const [skipDups, setSkipDups] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,18 +325,21 @@ function ImportModal({ onClose, onImport, importing }: { onClose: () => void; on
     reader.readAsArrayBuffer(file);
   };
 
+  const rowsWithDup = rows.map(r => ({ ...r, _dup: isDuplicate(r, existingContacts) }));
+  const dupCount = rowsWithDup.filter(r => r._dup).length;
+  const toImport = skipDups ? rowsWithDup.filter(r => !r._dup) : rowsWithDup;
   const PREVIEW_COLS = ["nombre","tipo","empresa","email","telefono","responsable"];
-  const preview = rows.slice(0, 5);
+  const preview = rowsWithDup.slice(0, 8);
 
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-    <div style={{background:C.card,borderRadius:16,width:700,maxHeight:"88vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
+    <div style={{background:C.card,borderRadius:16,width:720,maxHeight:"90vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
       <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{color:"#fff",fontWeight:700,fontSize:17}}>📥 Importar contactos</div>
         <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
       </div>
       <div style={{padding:24}}>
-        <div style={{background:C.soft,borderRadius:12,padding:16,marginBottom:18,fontSize:13,color:C.muted}}>
-          <strong style={{color:C.text}}>Formato esperado:</strong> Encabezados reconocidos automáticamente: <code>Nombre</code>, <code>Tipo</code>, <code>Empresa</code>, <code>Email</code>, <code>Teléfono</code>, <code>Responsable</code>, <code>Notas</code>. Acepta <strong>.xlsx</strong>, <strong>.xls</strong> y <strong>.csv</strong>. Múltiples tipos separados por coma.
+        <div style={{background:C.soft,borderRadius:12,padding:14,marginBottom:18,fontSize:13,color:C.muted}}>
+          <strong style={{color:C.text}}>Formato:</strong> Encabezados reconocidos: <code>Nombre</code>, <code>Tipo</code>, <code>Empresa</code>, <code>Email</code>, <code>Teléfono</code>, <code>Responsable</code>, <code>Notas</code>. Acepta <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong>. Tipos separados por coma.
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
           <button onClick={()=>fileRef.current?.click()} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
@@ -336,25 +350,48 @@ function ImportModal({ onClose, onImport, importing }: { onClose: () => void; on
         </div>
         {err&&<div style={{color:"#c00",background:"#fee",border:"1px solid #fcc",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:14}}>{err}</div>}
         {rows.length>0&&<>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:10,color:C.text}}>✅ {rows.length} contacto{rows.length!==1?"s":""} encontrado{rows.length!==1?"s":""} — vista previa (primeras 5 filas):</div>
+          <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}>
+              <strong>{rows.length}</strong> fila{rows.length!==1?"s":""} en el archivo
+            </div>
+            {dupCount>0&&<div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"8px 14px",fontSize:13,color:"#856404"}}>
+              ⚠️ <strong>{dupCount}</strong> posible{dupCount!==1?"s":""} duplicado{dupCount!==1?"s":""}
+            </div>}
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13,color:C.green,fontWeight:600}}>
+              → Se importarán <strong>{toImport.length}</strong>
+            </div>
+          </div>
+          {dupCount>0&&<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",fontSize:13,fontWeight:600,color:C.text}}>
+            <input type="checkbox" checked={skipDups} onChange={e=>setSkipDups(e.target.checked)} style={{accentColor:C.primary,width:15,height:15}}/>
+            Omitir duplicados (mismo nombre o email)
+          </label>}
           <div style={{overflowX:"auto",marginBottom:18}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:C.soft}}>
+                <th style={{padding:"8px 6px",borderBottom:`1px solid ${C.border}`,color:C.muted,fontWeight:700,width:24}}></th>
                 {PREVIEW_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
               </tr></thead>
               <tbody>
-                {preview.map((r,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
-                  {PREVIEW_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}
-                  </td>)}
-                </tr>)}
+                {preview.map((r,i)=>{
+                  const isDup=!!r._dup;
+                  const willSkip=skipDups&&isDup;
+                  return <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:isDup?"#fffbea":undefined,opacity:willSkip?0.45:1}}>
+                    <td style={{padding:"6px",textAlign:"center"}}>
+                      {isDup?<span title={r._dup} style={{cursor:"help",fontSize:14}}>⚠️</span>:<span style={{fontSize:14,color:C.green}}>✓</span>}
+                    </td>
+                    {PREVIEW_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}
+                    </td>)}
+                  </tr>;
+                })}
               </tbody>
             </table>
+            {rows.length>8&&<div style={{textAlign:"center",padding:"8px",fontSize:12,color:C.muted}}>...y {rows.length-8} fila{rows.length-8!==1?"s":""} más</div>}
           </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={onClose} disabled={importing} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
-            <button onClick={()=>onImport(rows)} disabled={importing} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,opacity:importing?0.7:1}}>
-              {importing ? "Importando..." : `Importar ${rows.length} contacto${rows.length!==1?"s":""}`}
+            <button onClick={()=>onImport(toImport.map(({_dup,...r})=>r))} disabled={importing||toImport.length===0} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:toImport.length===0?"not-allowed":"pointer",fontWeight:700,fontSize:14,opacity:(importing||toImport.length===0)?0.6:1}}>
+              {importing ? "Importando..." : toImport.length===0 ? "Sin contactos nuevos" : `Importar ${toImport.length} contacto${toImport.length!==1?"s":""}`}
             </button>
           </div>
         </>}
@@ -519,7 +556,7 @@ function CRM({ currentUser, onLogout }: any) {
 
     {modal&&<ContactModal contact={modal.contact} onClose={()=>setModal(null)} onSave={saveContact} rol={rol}/>}
     {showUsers&&<UserPanel currentUser={currentUser} onClose={()=>setShowUsers(false)}/>}
-    {showImport&&<ImportModal onClose={()=>!importing&&setShowImport(false)} onImport={importContacts} importing={importing}/>}
+    {showImport&&<ImportModal onClose={()=>!importing&&setShowImport(false)} onImport={importContacts} importing={importing} existingContacts={contacts}/>}
     {colMenu&&<div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setColMenu(false)}/>}
   </div>;
 }

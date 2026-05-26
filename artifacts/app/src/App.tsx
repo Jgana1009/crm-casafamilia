@@ -1,5 +1,23 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-declare const XLSX: any;
+import { useState, useMemo, useEffect } from "react";
+
+const SUPABASE_URL = "https://kbbgslpccncvxqllngaf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_RX-EZvhr_hrxn6y_YiF24g__PALlXeK";
+
+async function sb(path: string, options?: any) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": options?.method === "POST" ? "return=representation" : "return=representation",
+    },
+    ...options,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
 
 const TIPOS = ["Donante monetario","Donante en especie","Voluntario","Proveedor","Empresa / organización","Aliado / institución","Medio y prensa","Otro"];
 const COLS = [
@@ -13,21 +31,12 @@ const COLS = [
 const C = {
   bg:"#F0F7FC", card:"#FFFFFF", primary:"#4A9FDC", primary2:"#9EC5E6", accent:"#F5D912",
   soft:"#E0F0FA", border:"#B8D9F0", text:"#444242", muted:"#878688", green:"#699F4A", blue:"#4A9FDC", orange:"#E6672B",
-  tag:{"Donante monetario":"#4A9FDC","Donante en especie":"#9EC5E6","Voluntario":"#699F4A","Proveedor":"#E6672B","Empresa / organización":"#4A9FDC","Aliado / institución":"#699F4A","Medio y prensa":"#444242","Otro":"#878688"}
+  tag:{"Donante monetario":"#4A9FDC","Donante en especie":"#9EC5E6","Voluntario":"#699F4A","Proveedor":"#E6672B","Empresa / organización":"#4A9FDC","Aliado / institución":"#699F4A","Medio y prensa":"#444242","Otro":"#878688"} as any
 };
-const DEMO = [
-  { id:1, nombre:"María Fernández", tipo:["Donante monetario"], empresa:"Particular", email:"maria@gmail.com", telefono:"+56912345678", responsable:"Admin", notas:"Muy comprometida.", interacciones:[{fecha:"2026-05-10",tipo:"Llamada",desc:"Confirmó donación",responsable:"Admin"}], aportes:[{id:1,tipo:"Donación mensual",monto:"$50.000",fecha:"2026-05-10",responsable:"Admin",comentario:""}] },
-  { id:2, nombre:"Constructora Andes SpA", tipo:["Empresa / organización"], empresa:"Constructora", email:"contacto@andes.cl", telefono:"+56222334455", responsable:"Admin", notas:"", interacciones:[], aportes:[] },
-  { id:3, nombre:"Roberto Silva", tipo:["Voluntario"], empresa:"Psicólogo", email:"rsilva@mail.com", telefono:"+56987654321", responsable:"Admin", notas:"", interacciones:[], aportes:[] },
-];
-const INIT_USERS = [{ id:1, nombre:"Administrador", usuario:"admin", password:"admin123", rol:"Admin" }];
-
-function load(key: string, fallback: any) { try { const s=localStorage.getItem(key); return s?JSON.parse(s):fallback; } catch { return fallback; } }
-function save(key: string, val: any) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
 function TagTipo({ tipo }: { tipo: any }) {
   const tipos = Array.isArray(tipo) ? tipo : (tipo ? [tipo] : []);
-  return <span style={{display:"flex",flexWrap:"wrap",gap:4}}>{tipos.map((t:string) => { const c=(C.tag as any)[t]||"#7F8C8D"; return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{t}</span>; })}</span>;
+  return <span style={{display:"flex",flexWrap:"wrap",gap:4}}>{tipos.map((t:string) => { const c=C.tag[t]||"#7F8C8D"; return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{t}</span>; })}</span>;
 }
 function TagRol({ rol }: { rol: string }) {
   const m: any = {Admin:{bg:"#4A9FDC22",color:"#4A9FDC"},Editor:{bg:"#699F4A22",color:"#699F4A"},Lector:{bg:"#87868822",color:"#878688"}};
@@ -40,7 +49,7 @@ function MultiSelect({ value, options, onChange, disabled }: any) {
   const toggle=(o:string)=>onChange(sel.includes(o)?sel.filter((x:string)=>x!==o):[...sel,o]);
   return <div style={{position:"relative"}}>
     <div onClick={()=>!disabled&&setOpen((v:boolean)=>!v)} style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,background:disabled?"#fafafa":C.bg,cursor:disabled?"default":"pointer",minHeight:34,display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
-      {sel.length===0?<span style={{color:C.muted}}>Seleccionar...</span>:sel.map((t:string)=>{const c=(C.tag as any)[t]||"#7F8C8D";return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{t}</span>;})}
+      {sel.length===0?<span style={{color:C.muted}}>Seleccionar...</span>:sel.map((t:string)=>{const c=C.tag[t]||"#7F8C8D";return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{t}</span>;})}
       {!disabled&&<span style={{marginLeft:"auto",color:C.muted,fontSize:11}}>{open?"▲":"▼"}</span>}
     </div>
     {open&&!disabled&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,zIndex:200,boxShadow:"0 4px 16px #0002",maxHeight:220,overflowY:"auto"}}>
@@ -50,9 +59,17 @@ function MultiSelect({ value, options, onChange, disabled }: any) {
   </div>;
 }
 
-function Login({ users, onLogin }: any) {
-  const [u,setU]=useState(""); const [p,setP]=useState(""); const [err,setErr]=useState("");
-  const submit=()=>{ const f=users.find((x:any)=>x.usuario===u.trim()&&x.password===p); if(f) onLogin(f); else setErr("Usuario o contraseña incorrectos"); };
+function Login({ onLogin }: any) {
+  const [u,setU]=useState(""); const [p,setP]=useState(""); const [err,setErr]=useState(""); const [loading,setLoading]=useState(false);
+  const submit=async()=>{
+    setLoading(true); setErr("");
+    try {
+      const data = await sb(`usuarios?usuario=eq.${encodeURIComponent(u.trim())}&select=*`);
+      if(data.length && data[0].password===p) onLogin(data[0]);
+      else setErr("Usuario o contraseña incorrectos");
+    } catch { setErr("Error de conexión"); }
+    setLoading(false);
+  };
   const iS:any={padding:"9px 12px",borderRadius:9,border:`1px solid ${C.border}`,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
   return <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,display:"flex",alignItems:"center",justifyContent:"center"}}>
     <div style={{background:C.card,borderRadius:20,padding:40,width:360,boxShadow:"0 12px 48px #0003"}}>
@@ -60,27 +77,34 @@ function Login({ users, onLogin }: any) {
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Usuario</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="Tu usuario" style={iS}/></div>
         <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Contraseña</label><input type="password" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••" style={iS}/></div>
-        {err&&<div style={{color:C.primary,fontSize:12,textAlign:"center",background:C.primary+"11",borderRadius:8,padding:8}}>{err}</div>}
-        <button onClick={submit} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:700,fontSize:15,cursor:"pointer",marginTop:4}}>Ingresar</button>
+        {err&&<div style={{color:"#e53e3e",fontSize:12,textAlign:"center",background:"#fff5f5",borderRadius:8,padding:8}}>{err}</div>}
+        <button onClick={submit} disabled={loading} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:700,fontSize:15,cursor:"pointer",marginTop:4,opacity:loading?0.7:1}}>{loading?"Ingresando...":"Ingresar"}</button>
       </div>
     </div>
   </div>;
 }
 
-function UserPanel({ users, setUsers, currentUser, onClose }: any) {
+function UserPanel({ currentUser, onClose }: any) {
+  const [users,setUsers]=useState<any[]>([]);
   const [editing,setEditing]=useState<any>(null);
   const [form,setForm]=useState({nombre:"",usuario:"",password:"",rol:"Editor"});
   const [err,setErr]=useState("");
   const set=(k:string,v:string)=>setForm((f:any)=>({...f,[k]:v}));
   const iS:any={padding:"8px 11px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
-  const saveUser=()=>{
+
+  useEffect(()=>{ sb("usuarios?select=*&order=id").then(setUsers).catch(()=>{}); },[]);
+
+  const saveUser=async()=>{
     if(!form.nombre||!form.usuario||!form.password) return setErr("Completa todos los campos");
-    if(users.find((u:any)=>u.usuario===form.usuario&&(editing==="new"||u.id!==editing.id))) return setErr("Ese usuario ya existe");
-    if(editing==="new") setUsers((us:any[])=>[...us,{...form,id:Date.now()}]);
-    else setUsers((us:any[])=>us.map((u:any)=>u.id===editing.id?{...form,id:u.id}:u));
-    setEditing(null); setErr("");
+    try {
+      if(editing==="new") await sb("usuarios",{method:"POST",body:form});
+      else await sb(`usuarios?id=eq.${editing.id}`,{method:"PATCH",body:form});
+      const updated = await sb("usuarios?select=*&order=id");
+      setUsers(updated); setEditing(null); setErr("");
+    } catch { setErr("Error al guardar"); }
   };
-  const delUser=(id:number)=>{ if(id===currentUser.id) return alert("No puedes eliminar tu propio usuario"); if(window.confirm("¿Eliminar usuario?")) setUsers((us:any[])=>us.filter((u:any)=>u.id!==id)); };
+  const delUser=async(id:number)=>{ if(id===currentUser.id) return alert("No puedes eliminar tu propio usuario"); if(!window.confirm("¿Eliminar usuario?")) return; await sb(`usuarios?id=eq.${id}`,{method:"DELETE"}); setUsers(us=>us.filter(u=>u.id!==id)); };
+
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
     <div style={{background:C.card,borderRadius:16,width:560,maxHeight:"85vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
       <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -97,7 +121,7 @@ function UserPanel({ users, setUsers, currentUser, onClose }: any) {
           <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8,background:u.id===currentUser.id?C.soft:"#fff"}}>
             <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{u.nombre}</div><div style={{fontSize:12,color:C.muted}}>@{u.usuario}</div></div>
             <TagRol rol={u.rol}/>
-            <button onClick={()=>{setForm({...u});setEditing(u);setErr("");}} style={{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12}}>Editar</button>
+            <button onClick={()=>{setForm({nombre:u.nombre,usuario:u.usuario,password:u.password,rol:u.rol});setEditing(u);setErr("");}} style={{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12}}>Editar</button>
             <button onClick={()=>delUser(u.id)} style={{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12,color:C.primary}}>✕</button>
           </div>
         ))}
@@ -110,7 +134,7 @@ function UserPanel({ users, setUsers, currentUser, onClose }: any) {
               <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Contraseña</label><input type="password" value={form.password} onChange={e=>set("password",e.target.value)} style={iS}/></div>
               <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Rol</label><select value={form.rol} onChange={e=>set("rol",e.target.value)} style={iS}>{["Admin","Editor","Lector"].map(r=><option key={r}>{r}</option>)}</select></div>
             </div>
-            {err&&<div style={{color:C.primary,fontSize:12,marginTop:8}}>{err}</div>}
+            {err&&<div style={{color:"#e53e3e",fontSize:12,marginTop:8}}>{err}</div>}
             <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
               <button onClick={()=>setEditing(null)} style={{padding:"8px 18px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
               <button onClick={saveUser} style={{padding:"8px 20px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700}}>Guardar</button>
@@ -124,7 +148,7 @@ function UserPanel({ users, setUsers, currentUser, onClose }: any) {
   </div>;
 }
 
-function ContactModal({ contact, onClose, onSave, rol, miembros }: any) {
+function ContactModal({ contact, onClose, onSave, rol }: any) {
   const readOnly = rol==="Lector"||(rol==="Editor"&&!!contact);
   const empty = {nombre:"",tipo:[],empresa:"",email:"",telefono:"",responsable:"",notas:"",interacciones:[],aportes:[]};
   const [form,setForm]=useState<any>(contact?{...empty,...contact,aportes:contact.aportes||[],interacciones:contact.interacciones||[]}:empty);
@@ -164,10 +188,7 @@ function ContactModal({ contact, onClose, onSave, rol, miembros }: any) {
               <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Tipo de contacto</label>
               <MultiSelect value={form.tipo} options={TIPOS} onChange={(v:any)=>set("tipo",v)} disabled={readOnly}/>
             </div>
-            {fld("empresa","Empresa / Cargo")}
-            {fld("email","Email","email")}
-            {fld("telefono","Teléfono")}
-            {fld("responsable","Responsable")}
+            {fld("empresa","Empresa / Cargo")}{fld("email","Email","email")}{fld("telefono","Teléfono")}{fld("responsable","Responsable")}
             <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:4}}>
               <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Notas</label>
               <textarea disabled={readOnly} value={form.notas||""} onChange={e=>set("notas",e.target.value)} rows={3} style={{...iS,resize:"vertical"}}/>
@@ -176,22 +197,20 @@ function ContactModal({ contact, onClose, onSave, rol, miembros }: any) {
         )}
         {tab==="aportes"&&(
           <div>
-            {(form.aportes||[]).length===0
-              ?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin aportes registrados</div>
-              :[...(form.aportes||[])].reverse().map((a:any)=>(
-                <div key={a.id} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.accent}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div>
-                    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:4}}>
-                      <span style={{fontWeight:700,fontSize:13}}>{a.tipo}</span>
-                      {a.monto&&<span style={{background:C.accent+"22",color:"#9a7e00",border:`1px solid ${C.accent}44`,borderRadius:10,padding:"1px 10px",fontSize:12,fontWeight:700}}>{a.monto}</span>}
-                    </div>
-                    <div style={{fontSize:12,color:C.muted}}>{"📅 "+a.fecha+(a.responsable?" · 👤 "+a.responsable:"")}</div>
-                    {a.comentario&&<div style={{fontSize:12,color:C.text,marginTop:4,fontStyle:"italic"}}>{"💬 "+a.comentario}</div>}
+            {(form.aportes||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin aportes registrados</div>
+            :[...(form.aportes||[])].reverse().map((a:any)=>(
+              <div key={a.id} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.accent}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:4}}>
+                    <span style={{fontWeight:700,fontSize:13}}>{a.tipo}</span>
+                    {a.monto&&<span style={{background:C.accent+"22",color:"#9a7e00",border:`1px solid ${C.accent}44`,borderRadius:10,padding:"1px 10px",fontSize:12,fontWeight:700}}>{a.monto}</span>}
                   </div>
-                  {!readOnly&&<button onClick={()=>delAporte(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:15,padding:"2px 6px"}}>🗑️</button>}
+                  <div style={{fontSize:12,color:C.muted}}>{"📅 "+a.fecha+(a.responsable?" · 👤 "+a.responsable:"")}</div>
+                  {a.comentario&&<div style={{fontSize:12,color:C.text,marginTop:4,fontStyle:"italic"}}>{"💬 "+a.comentario}</div>}
                 </div>
-              ))
-            }
+                {!readOnly&&<button onClick={()=>delAporte(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:15}}>🗑️</button>}
+              </div>
+            ))}
             {!readOnly&&(
               <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`,marginTop:8}}>
                 <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nuevo aporte</div>
@@ -209,21 +228,19 @@ function ContactModal({ contact, onClose, onSave, rol, miembros }: any) {
         )}
         {tab==="interacciones"&&(
           <div>
-            {(form.interacciones||[]).length===0
-              ?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin interacciones</div>
-              :[...form.interacciones].reverse().map((i:any,idx:number)=>(
-                <div key={idx} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.primary}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13}}>{i.tipo}</span><span style={{fontSize:12,color:C.muted}}>{i.fecha}</span></div>
-                  <div style={{fontSize:13,marginBottom:4}}>{i.desc}</div>
-                  <div style={{fontSize:11,color:C.muted}}>👤 {i.responsable}</div>
-                </div>
-              ))
-            }
+            {(form.interacciones||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin interacciones</div>
+            :[...form.interacciones].reverse().map((i:any,idx:number)=>(
+              <div key={idx} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.primary}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13}}>{i.tipo}</span><span style={{fontSize:12,color:C.muted}}>{i.fecha}</span></div>
+                <div style={{fontSize:13,marginBottom:4}}>{i.desc}</div>
+                <div style={{fontSize:11,color:C.muted}}>👤 {i.responsable}</div>
+              </div>
+            ))}
             {!readOnly&&(
               <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`}}>
                 <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nueva interacción</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <input placeholder="Tipo (ej: Llamada, Visita...)" value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input placeholder="Tipo" value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%"}}/>
                   <input type="date" value={newInt.fecha} onChange={e=>setNewInt(n=>({...n,fecha:e.target.value}))} style={{...inpS,width:"100%"}}/>
                   <input placeholder="Descripción" value={newInt.desc} onChange={e=>setNewInt(n=>({...n,desc:e.target.value}))} style={{...inpS,gridColumn:"1/-1",width:"100%"}}/>
                   <input placeholder="Responsable" value={newInt.responsable} onChange={e=>setNewInt(n=>({...n,responsable:e.target.value}))} style={{...inpS,width:"100%"}}/>
@@ -244,110 +261,9 @@ function ContactModal({ contact, onClose, onSave, rol, miembros }: any) {
   </div>;
 }
 
-const FIELD_MAP: Record<string, string> = {
-  nombre:"nombre", name:"nombre", organizacion:"nombre", org:"nombre",
-  tipo:"tipo", type:"tipo",
-  empresa:"empresa", company:"empresa", cargo:"empresa",
-  email:"email", correo:"email", mail:"email",
-  telefono:"telefono", phone:"telefono", celular:"telefono", movil:"telefono",
-  responsable:"responsable",
-  notas:"notas", notes:"notas", comentarios:"notas", comentario:"notas",
-};
-function normalizeHeader(h: string) {
-  return h.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
-}
-function parseRows(rows: any[]): any[] {
-  if (!rows.length) return [];
-  const headers: string[] = Object.keys(rows[0]);
-  const mapped: Record<string, string> = {};
-  headers.forEach(h => { const f = FIELD_MAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
-  return rows.map(row => {
-    const c: any = { tipo: [], interacciones: [], aportes: [] };
-    Object.entries(mapped).forEach(([h, field]) => {
-      const v = String(row[h] ?? "").trim();
-      if (!v) return;
-      if (field === "tipo") c.tipo = v.split(/[,;|]/).map((s:string) => s.trim()).filter(Boolean);
-      else c[field] = v;
-    });
-    return c;
-  }).filter(c => c.nombre);
-}
-
-function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (rows: any[]) => void }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [fileName, setFileName] = useState("");
-  const [err, setErr] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setFileName(file.name); setErr(""); setRows([]);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = ev.target?.result;
-        const wb = XLSX.read(data, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        const parsed = parseRows(json);
-        if (!parsed.length) { setErr("No se encontraron filas válidas. Asegúrate de tener una columna 'Nombre'."); return; }
-        setRows(parsed);
-      } catch { setErr("No se pudo leer el archivo. Usa un .xlsx, .xls o .csv válido."); }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const PREVIEW_COLS = ["nombre","tipo","empresa","email","telefono","responsable"];
-  const preview = rows.slice(0, 5);
-
-  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-    <div style={{background:C.card,borderRadius:16,width:700,maxHeight:"88vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
-      <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{color:"#fff",fontWeight:700,fontSize:17}}>📥 Importar contactos</div>
-        <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
-      </div>
-      <div style={{padding:24}}>
-        <div style={{background:C.soft,borderRadius:12,padding:16,marginBottom:18,fontSize:13,color:C.muted}}>
-          <strong style={{color:C.text}}>Formato esperado:</strong> El archivo debe tener encabezados de columna. Se reconocen automáticamente: <code>Nombre</code>, <code>Tipo</code>, <code>Empresa</code>, <code>Email</code>, <code>Teléfono</code>, <code>Responsable</code>, <code>Notas</code>. Acepta <strong>.xlsx</strong>, <strong>.xls</strong> y <strong>.csv</strong>.
-        </div>
-        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
-          <button onClick={()=>fileRef.current?.click()} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
-            📂 Elegir archivo
-          </button>
-          <span style={{fontSize:13,color:fileName?C.text:C.muted}}>{fileName||"Ningún archivo seleccionado"}</span>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{display:"none"}}/>
-        </div>
-        {err&&<div style={{color:"#c00",background:"#fee",border:"1px solid #fcc",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:14}}>{err}</div>}
-        {rows.length>0&&<>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:10,color:C.text}}>✅ {rows.length} contacto{rows.length!==1?"s":""} encontrado{rows.length!==1?"s":""} — vista previa (primeras 5 filas):</div>
-          <div style={{overflowX:"auto",marginBottom:18}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr style={{background:C.soft}}>
-                {PREVIEW_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
-              </tr></thead>
-              <tbody>
-                {preview.map((r,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
-                  {PREVIEW_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}
-                  </td>)}
-                </tr>)}
-              </tbody>
-            </table>
-          </div>
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-            <button onClick={onClose} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
-            <button onClick={()=>onImport(rows)} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14}}>
-              Importar {rows.length} contacto{rows.length!==1?"s":""}
-            </button>
-          </div>
-        </>}
-      </div>
-    </div>
-  </div>;
-}
-
-function CRM({ currentUser, onLogout, users, setUsers }: any) {
-  const [contacts,setContacts]=useState<any[]>(()=>load("cf_contacts",DEMO));
+function CRM({ currentUser, onLogout }: any) {
+  const [contacts,setContacts]=useState<any[]>([]);
+  const [loading,setLoading]=useState(true);
   const [modal,setModal]=useState<any>(null);
   const [showUsers,setShowUsers]=useState(false);
   const [search,setSearch]=useState("");
@@ -357,35 +273,40 @@ function CRM({ currentUser, onLogout, users, setUsers }: any) {
   const [colMenu,setColMenu]=useState(false);
   const [sortKey,setSortKey]=useState("nombre");
   const [sortDir,setSortDir]=useState("asc");
-  const [nextId,setNextId]=useState(500);
-  const [showImport,setShowImport]=useState(false);
 
-  useEffect(()=>save("cf_contacts",contacts),[contacts]);
+  const loadContacts=async()=>{ setLoading(true); try{ const data=await sb("contacts?select=*&order=nombre"); setContacts(data); }catch(e){console.error(e);} setLoading(false); };
+  useEffect(()=>{ loadContacts(); },[]);
 
   const rol=currentUser.rol;
   const canCreate=rol==="Admin"||rol==="Editor";
   const canEdit=rol==="Admin";
   const canDelete=rol==="Admin";
-  const miembros=useMemo(()=>users.map((u:any)=>u.nombre),[users]);
 
-  const saveContact=(form:any)=>{ if(!form.nombre) return; if(form.id) setContacts(cs=>cs.map(c=>c.id===form.id?form:c)); else{setContacts(cs=>[...cs,{...form,id:nextId,interacciones:form.interacciones||[],aportes:form.aportes||[]}]);setNextId(n=>n+1);} setModal(null); };
-  const importContacts=(rows:any[])=>{ let id=nextId; setContacts(cs=>[...cs,...rows.map(r=>({...r,id:id++}))]); setNextId(id); setShowImport(false); };
-  const deleteContact=(id:number)=>{ if(window.confirm("¿Eliminar contacto?")) setContacts(cs=>cs.filter(c=>c.id!==id)); };
+  const saveContact=async(form:any)=>{
+    if(!form.nombre) return;
+    try {
+      if(form.id) await sb(`contacts?id=eq.${form.id}`,{method:"PATCH",body:{nombre:form.nombre,tipo:form.tipo,empresa:form.empresa,email:form.email,telefono:form.telefono,responsable:form.responsable,notas:form.notas,interacciones:form.interacciones,aportes:form.aportes}});
+      else await sb("contacts",{method:"POST",body:{nombre:form.nombre,tipo:form.tipo||[],empresa:form.empresa||"",email:form.email||"",telefono:form.telefono||"",responsable:form.responsable||"",notas:form.notas||"",interacciones:[],aportes:[]}});
+      await loadContacts();
+    } catch(e){ console.error(e); }
+    setModal(null);
+  };
+  const deleteContact=async(id:number)=>{ if(!window.confirm("¿Eliminar contacto?")) return; await sb(`contacts?id=eq.${id}`,{method:"DELETE"}); setContacts(cs=>cs.filter(c=>c.id!==id)); };
 
   const exportContactos=()=>{
     const keys=["nombre","tipo","empresa","email","telefono","responsable","notas"];
     const h=keys.join(",");
     const rows=filtered.map((c:any)=>keys.map(k=>`"${(Array.isArray(c[k])?c[k].join(", "):c[k]||"").replace(/"/g,'""')}"`).join(","));
     const b=new Blob([[h,...rows].join("\n")],{type:"text/csv"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="contactos_casafamilia.csv";a.click();
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="contactos.csv";a.click();
   };
   const exportAportes=()=>{
-    const h=["Contacto","Tipo contacto","Empresa","Email","Tipo de aporte","Monto","Fecha","Responsable","Comentario"].join(",");
+    const h=["Contacto","Tipo","Empresa","Email","Tipo aporte","Monto","Fecha","Responsable","Comentario"].join(",");
     const rows:string[]=[];
     contacts.forEach((c:any)=>{ (c.aportes||[]).forEach((a:any)=>{ rows.push([c.nombre,Array.isArray(c.tipo)?c.tipo.join(", "):(c.tipo||""),c.empresa||"",c.email||"",a.tipo||"",a.monto||"",a.fecha||"",a.responsable||"",a.comentario||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")); }); });
     if(!rows.length) return alert("No hay aportes registrados.");
     const b=new Blob([[h,...rows].join("\n")],{type:"text/csv"});
-    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="aportes_casafamilia.csv";a.click();
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="aportes.csv";a.click();
   };
 
   const sortBy=(k:string)=>{ if(sortKey===k) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortKey(k);setSortDir("asc");} };
@@ -398,7 +319,7 @@ function CRM({ currentUser, onLogout, users, setUsers }: any) {
     if(search) r=r.filter((c:any)=>[c.nombre,c.empresa,c.email,c.notas].join(" ").toLowerCase().includes(search.toLowerCase()));
     if(filterTipo!=="Todos") r=r.filter((c:any)=>Array.isArray(c.tipo)?c.tipo.includes(filterTipo):c.tipo===filterTipo);
     if(filterResp!=="Todos") r=r.filter((c:any)=>c.responsable===filterResp);
-    r.sort((a:any,b:any)=>{const va=a[sortKey]||"",vb=b[sortKey]||"";return sortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va);});
+    r.sort((a:any,b:any)=>{const va=a[sortKey]||"",vb=b[sortKey]||"";return sortDir==="asc"?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});
     return r;
   },[contacts,search,filterTipo,filterResp,sortKey,sortDir]);
 
@@ -446,7 +367,6 @@ function CRM({ currentUser, onLogout, users, setUsers }: any) {
           {COLS.filter(c=>!c.always).map(c=><label key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={visibleCols.includes(c.key)} onChange={()=>toggleCol(c.key)}/>{c.label}</label>)}
         </div>}
       </div>
-      {canCreate&&<button onClick={()=>setShowImport(true)} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.primary,fontWeight:600}}>⬆ Importar</button>}
       <button onClick={exportContactos} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.green,fontWeight:600}}>⬇ Contactos</button>
       <button onClick={exportAportes} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.blue,fontWeight:600}}>⬇ Aportes</button>
       <span style={{fontSize:12,color:C.muted}}>{filtered.length} resultado{filtered.length!==1?"s":""}</span>
@@ -460,8 +380,9 @@ function CRM({ currentUser, onLogout, users, setUsers }: any) {
             <th style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}></th>
           </tr></thead>
           <tbody>
-            {filtered.length===0&&<tr><td colSpan={shownCols.length+1} style={{textAlign:"center",padding:40,color:C.muted}}>Sin resultados</td></tr>}
-            {filtered.map((c:any,i:number)=>(
+            {loading&&<tr><td colSpan={shownCols.length+1} style={{textAlign:"center",padding:40,color:C.muted}}>Cargando...</td></tr>}
+            {!loading&&filtered.length===0&&<tr><td colSpan={shownCols.length+1} style={{textAlign:"center",padding:40,color:C.muted}}>Sin resultados</td></tr>}
+            {!loading&&filtered.map((c:any,i:number)=>(
               <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"#fff":C.bg+"88",cursor:"pointer"}}
                 onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=C.soft}
                 onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=i%2===0?"#fff":C.bg+"88"}>
@@ -481,17 +402,14 @@ function CRM({ currentUser, onLogout, users, setUsers }: any) {
       </div>
     </div>
 
-    {modal&&<ContactModal contact={modal.contact} onClose={()=>setModal(null)} onSave={saveContact} rol={rol} miembros={miembros}/>}
-    {showUsers&&<UserPanel users={users} setUsers={setUsers} currentUser={currentUser} onClose={()=>setShowUsers(false)}/>}
-    {showImport&&<ImportModal onClose={()=>setShowImport(false)} onImport={importContacts}/>}
+    {modal&&<ContactModal contact={modal.contact} onClose={()=>setModal(null)} onSave={saveContact} rol={rol}/>}
+    {showUsers&&<UserPanel currentUser={currentUser} onClose={()=>setShowUsers(false)}/>}
     {colMenu&&<div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setColMenu(false)}/>}
   </div>;
 }
 
 export default function App() {
-  const [users,setUsers]=useState<any[]>(()=>load("cf_users",INIT_USERS));
   const [currentUser,setCurrentUser]=useState<any>(null);
-  useEffect(()=>save("cf_users",users),[users]);
-  if(!currentUser) return <Login users={users} onLogin={setCurrentUser}/>;
-  return <CRM currentUser={currentUser} onLogout={()=>setCurrentUser(null)} users={users} setUsers={setUsers}/>;
+  if(!currentUser) return <Login onLogin={setCurrentUser}/>;
+  return <CRM currentUser={currentUser} onLogout={()=>setCurrentUser(null)}/>;
 }

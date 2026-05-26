@@ -1,0 +1,415 @@
+import { useState, useMemo, useEffect } from "react";
+
+const SUPABASE_URL = "https://kbbgslpccncvxqllngaf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_RX-EZvhr_hrxn6y_YiF24g__PALlXeK";
+
+async function sb(path: string, options?: any) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": options?.method === "POST" ? "return=representation" : "return=representation",
+    },
+    ...options,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+const TIPOS = ["Donante monetario","Donante en especie","Voluntario","Proveedor","Empresa / organización","Aliado / institución","Medio y prensa","Otro"];
+const COLS = [
+  { key:"nombre", label:"Nombre / Org.", always:true },
+  { key:"tipo", label:"Tipo" },
+  { key:"empresa", label:"Empresa / Cargo" },
+  { key:"email", label:"Email" },
+  { key:"telefono", label:"Teléfono" },
+  { key:"responsable", label:"Responsable" },
+];
+const C = {
+  bg:"#F0F7FC", card:"#FFFFFF", primary:"#4A9FDC", primary2:"#9EC5E6", accent:"#F5D912",
+  soft:"#E0F0FA", border:"#B8D9F0", text:"#444242", muted:"#878688", green:"#699F4A", blue:"#4A9FDC", orange:"#E6672B",
+  tag:{"Donante monetario":"#4A9FDC","Donante en especie":"#9EC5E6","Voluntario":"#699F4A","Proveedor":"#E6672B","Empresa / organización":"#4A9FDC","Aliado / institución":"#699F4A","Medio y prensa":"#444242","Otro":"#878688"} as any
+};
+
+function TagTipo({ tipo }: { tipo: any }) {
+  const tipos = Array.isArray(tipo) ? tipo : (tipo ? [tipo] : []);
+  return <span style={{display:"flex",flexWrap:"wrap",gap:4}}>{tipos.map((t:string) => { const c=C.tag[t]||"#7F8C8D"; return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 10px",fontSize:11,fontWeight:600,whiteSpace:"nowrap"}}>{t}</span>; })}</span>;
+}
+function TagRol({ rol }: { rol: string }) {
+  const m: any = {Admin:{bg:"#4A9FDC22",color:"#4A9FDC"},Editor:{bg:"#699F4A22",color:"#699F4A"},Lector:{bg:"#87868822",color:"#878688"}};
+  const s = m[rol]||{bg:"#eee",color:"#555"};
+  return <span style={{...s,borderRadius:10,padding:"2px 10px",fontSize:11,fontWeight:700}}>{rol}</span>;
+}
+function MultiSelect({ value, options, onChange, disabled }: any) {
+  const [open,setOpen]=useState(false);
+  const sel=Array.isArray(value)?value:(value?[value]:[]);
+  const toggle=(o:string)=>onChange(sel.includes(o)?sel.filter((x:string)=>x!==o):[...sel,o]);
+  return <div style={{position:"relative"}}>
+    <div onClick={()=>!disabled&&setOpen((v:boolean)=>!v)} style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,background:disabled?"#fafafa":C.bg,cursor:disabled?"default":"pointer",minHeight:34,display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}}>
+      {sel.length===0?<span style={{color:C.muted}}>Seleccionar...</span>:sel.map((t:string)=>{const c=C.tag[t]||"#7F8C8D";return <span key={t} style={{background:c+"22",color:c,border:`1px solid ${c}44`,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{t}</span>;})}
+      {!disabled&&<span style={{marginLeft:"auto",color:C.muted,fontSize:11}}>{open?"▲":"▼"}</span>}
+    </div>
+    {open&&!disabled&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:C.card,border:`1px solid ${C.border}`,borderRadius:10,zIndex:200,boxShadow:"0 4px 16px #0002",maxHeight:220,overflowY:"auto"}}>
+      {options.map((o:string)=><label key={o} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",cursor:"pointer",background:sel.includes(o)?C.soft:"transparent",fontSize:13}}><input type="checkbox" checked={sel.includes(o)} onChange={()=>toggle(o)} style={{accentColor:C.primary}}/><TagTipo tipo={[o]}/></label>)}
+    </div>}
+    {open&&<div style={{position:"fixed",inset:0,zIndex:199}} onClick={()=>setOpen(false)}/>}
+  </div>;
+}
+
+function Login({ onLogin }: any) {
+  const [u,setU]=useState(""); const [p,setP]=useState(""); const [err,setErr]=useState(""); const [loading,setLoading]=useState(false);
+  const submit=async()=>{
+    setLoading(true); setErr("");
+    try {
+      const data = await sb(`usuarios?usuario=eq.${encodeURIComponent(u.trim())}&select=*`);
+      if(data.length && data[0].password===p) onLogin(data[0]);
+      else setErr("Usuario o contraseña incorrectos");
+    } catch { setErr("Error de conexión"); }
+    setLoading(false);
+  };
+  const iS:any={padding:"9px 12px",borderRadius:9,border:`1px solid ${C.border}`,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
+  return <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:C.card,borderRadius:20,padding:40,width:360,boxShadow:"0 12px 48px #0003"}}>
+      <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:48}}>🏠</div><div style={{fontWeight:800,fontSize:22,color:C.primary}}>Casa Familia</div><div style={{color:C.muted,fontSize:13,marginTop:4}}>Directorio de contactos</div></div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Usuario</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="Tu usuario" style={iS}/></div>
+        <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Contraseña</label><input type="password" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••" style={iS}/></div>
+        {err&&<div style={{color:"#e53e3e",fontSize:12,textAlign:"center",background:"#fff5f5",borderRadius:8,padding:8}}>{err}</div>}
+        <button onClick={submit} disabled={loading} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"12px",fontWeight:700,fontSize:15,cursor:"pointer",marginTop:4,opacity:loading?0.7:1}}>{loading?"Ingresando...":"Ingresar"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function UserPanel({ currentUser, onClose }: any) {
+  const [users,setUsers]=useState<any[]>([]);
+  const [editing,setEditing]=useState<any>(null);
+  const [form,setForm]=useState({nombre:"",usuario:"",password:"",rol:"Editor"});
+  const [err,setErr]=useState("");
+  const set=(k:string,v:string)=>setForm((f:any)=>({...f,[k]:v}));
+  const iS:any={padding:"8px 11px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
+
+  useEffect(()=>{ sb("usuarios?select=*&order=id").then(setUsers).catch(()=>{}); },[]);
+
+  const saveUser=async()=>{
+    if(!form.nombre||!form.usuario||!form.password) return setErr("Completa todos los campos");
+    try {
+      if(editing==="new") await sb("usuarios",{method:"POST",body:form});
+      else await sb(`usuarios?id=eq.${editing.id}`,{method:"PATCH",body:form});
+      const updated = await sb("usuarios?select=*&order=id");
+      setUsers(updated); setEditing(null); setErr("");
+    } catch { setErr("Error al guardar"); }
+  };
+  const delUser=async(id:number)=>{ if(id===currentUser.id) return alert("No puedes eliminar tu propio usuario"); if(!window.confirm("¿Eliminar usuario?")) return; await sb(`usuarios?id=eq.${id}`,{method:"DELETE"}); setUsers(us=>us.filter(u=>u.id!==id)); };
+
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:C.card,borderRadius:16,width:560,maxHeight:"85vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:"#fff",fontWeight:700,fontSize:17}}>👥 Gestión de usuarios</div>
+        <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
+      <div style={{padding:24}}>
+        <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap"}}>
+          {[["Admin","Todo: ver, crear, editar, eliminar"],["Editor","Ver y crear contactos"],["Lector","Solo ver"]].map(([r,d])=>(
+            <div key={r} style={{background:C.soft,borderRadius:10,padding:"8px 14px",flex:1,minWidth:120}}><TagRol rol={r}/><div style={{fontSize:11,color:C.muted,marginTop:4}}>{d}</div></div>
+          ))}
+        </div>
+        {users.map((u:any)=>(
+          <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,border:`1px solid ${C.border}`,marginBottom:8,background:u.id===currentUser.id?C.soft:"#fff"}}>
+            <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{u.nombre}</div><div style={{fontSize:12,color:C.muted}}>@{u.usuario}</div></div>
+            <TagRol rol={u.rol}/>
+            <button onClick={()=>{setForm({nombre:u.nombre,usuario:u.usuario,password:u.password,rol:u.rol});setEditing(u);setErr("");}} style={{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12}}>Editar</button>
+            <button onClick={()=>delUser(u.id)} style={{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:7,background:"#fff",cursor:"pointer",fontSize:12,color:C.primary}}>✕</button>
+          </div>
+        ))}
+        {editing?(
+          <div style={{background:C.bg,borderRadius:12,padding:18,border:`1px solid ${C.border}`,marginTop:10}}>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:14}}>{editing==="new"?"Nuevo usuario":"Editar usuario"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Nombre</label><input value={form.nombre} onChange={e=>set("nombre",e.target.value)} style={iS}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Usuario</label><input value={form.usuario} onChange={e=>set("usuario",e.target.value)} style={iS}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Contraseña</label><input type="password" value={form.password} onChange={e=>set("password",e.target.value)} style={iS}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Rol</label><select value={form.rol} onChange={e=>set("rol",e.target.value)} style={iS}>{["Admin","Editor","Lector"].map(r=><option key={r}>{r}</option>)}</select></div>
+            </div>
+            {err&&<div style={{color:"#e53e3e",fontSize:12,marginTop:8}}>{err}</div>}
+            <div style={{display:"flex",gap:8,marginTop:14,justifyContent:"flex-end"}}>
+              <button onClick={()=>setEditing(null)} style={{padding:"8px 18px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
+              <button onClick={saveUser} style={{padding:"8px 20px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700}}>Guardar</button>
+            </div>
+          </div>
+        ):(
+          <button onClick={()=>{setForm({nombre:"",usuario:"",password:"",rol:"Editor"});setEditing("new");setErr("");}} style={{width:"100%",padding:10,border:`2px dashed ${C.border}`,borderRadius:10,background:"none",cursor:"pointer",color:C.muted,fontWeight:600,fontSize:13,marginTop:8}}>+ Agregar usuario</button>
+        )}
+      </div>
+    </div>
+  </div>;
+}
+
+function ContactModal({ contact, onClose, onSave, rol }: any) {
+  const readOnly = rol==="Lector"||(rol==="Editor"&&!!contact);
+  const empty = {nombre:"",tipo:[],empresa:"",email:"",telefono:"",responsable:"",notas:"",interacciones:[],aportes:[]};
+  const [form,setForm]=useState<any>(contact?{...empty,...contact,aportes:contact.aportes||[],interacciones:contact.interacciones||[]}:empty);
+  const [tab,setTab]=useState("datos");
+  const [newInt,setNewInt]=useState({fecha:new Date().toISOString().slice(0,10),tipo:"",desc:"",responsable:""});
+  const [newAporte,setNewAporte]=useState({fecha:new Date().toISOString().slice(0,10),tipo:"",monto:"",responsable:"",comentario:""});
+  const set=(k:string,v:any)=>setForm((f:any)=>({...f,[k]:v}));
+  const addInt=()=>{ if(!newInt.tipo||!newInt.desc) return; setForm((f:any)=>({...f,interacciones:[...f.interacciones,{...newInt}]})); setNewInt(n=>({...n,tipo:"",desc:""})); };
+  const addAporte=()=>{ if(!newAporte.tipo) return; setForm((f:any)=>({...f,aportes:[...(f.aportes||[]),{...newAporte,id:Date.now()}]})); setNewAporte({fecha:new Date().toISOString().slice(0,10),tipo:"",monto:"",responsable:"",comentario:""}); };
+  const delAporte=(id:number)=>setForm((f:any)=>({...f,aportes:(f.aportes||[]).filter((a:any)=>a.id!==id)}));
+  const iS:any={padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,color:C.text,background:readOnly?"#fafafa":C.bg,outline:"none",width:"100%",boxSizing:"border-box"};
+  const inpS:any={padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:13,outline:"none",boxSizing:"border-box"};
+  const fld=(k:string,label:string,type="text")=>(
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      <label style={{fontSize:12,fontWeight:600,color:C.muted}}>{label}</label>
+      <input disabled={readOnly} type={type} value={form[k]||""} onChange={e=>set(k,e.target.value)} style={iS}/>
+    </div>
+  );
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:C.card,borderRadius:16,width:640,maxHeight:"90vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"20px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:"#fff",fontWeight:700,fontSize:18}}>{contact?"Ficha de contacto":"Nuevo contacto"}</div>
+        <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 24px"}}>
+        {["datos","aportes","interacciones"].map(t=>(
+          <button key={t} onClick={()=>setTab(t)} style={{padding:"12px 16px",border:"none",background:"none",cursor:"pointer",fontWeight:600,fontSize:13,color:tab===t?C.primary:C.muted,borderBottom:tab===t?`2px solid ${C.primary}`:"2px solid transparent"}}>
+            {t==="datos"?"📋 Datos":t==="aportes"?"💛 Aportes":"🕐 Historial"}
+          </button>
+        ))}
+      </div>
+      <div style={{padding:24}}>
+        {tab==="datos"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div style={{gridColumn:"1/-1"}}>{fld("nombre","Nombre / Organización *")}</div>
+            <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:4}}>
+              <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Tipo de contacto</label>
+              <MultiSelect value={form.tipo} options={TIPOS} onChange={(v:any)=>set("tipo",v)} disabled={readOnly}/>
+            </div>
+            {fld("empresa","Empresa / Cargo")}{fld("email","Email","email")}{fld("telefono","Teléfono")}{fld("responsable","Responsable")}
+            <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:4}}>
+              <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Notas</label>
+              <textarea disabled={readOnly} value={form.notas||""} onChange={e=>set("notas",e.target.value)} rows={3} style={{...iS,resize:"vertical"}}/>
+            </div>
+          </div>
+        )}
+        {tab==="aportes"&&(
+          <div>
+            {(form.aportes||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin aportes registrados</div>
+            :[...(form.aportes||[])].reverse().map((a:any)=>(
+              <div key={a.id} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.accent}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:4}}>
+                    <span style={{fontWeight:700,fontSize:13}}>{a.tipo}</span>
+                    {a.monto&&<span style={{background:C.accent+"22",color:"#9a7e00",border:`1px solid ${C.accent}44`,borderRadius:10,padding:"1px 10px",fontSize:12,fontWeight:700}}>{a.monto}</span>}
+                  </div>
+                  <div style={{fontSize:12,color:C.muted}}>{"📅 "+a.fecha+(a.responsable?" · 👤 "+a.responsable:"")}</div>
+                  {a.comentario&&<div style={{fontSize:12,color:C.text,marginTop:4,fontStyle:"italic"}}>{"💬 "+a.comentario}</div>}
+                </div>
+                {!readOnly&&<button onClick={()=>delAporte(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:15}}>🗑️</button>}
+              </div>
+            ))}
+            {!readOnly&&(
+              <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`,marginTop:8}}>
+                <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nuevo aporte</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <input placeholder="Tipo de aporte *" value={newAporte.tipo} onChange={e=>setNewAporte(n=>({...n,tipo:e.target.value}))} style={{...inpS,gridColumn:"1/-1",width:"100%"}}/>
+                  <input placeholder="Monto o valor" value={newAporte.monto} onChange={e=>setNewAporte(n=>({...n,monto:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input type="date" value={newAporte.fecha} onChange={e=>setNewAporte(n=>({...n,fecha:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input placeholder="Responsable" value={newAporte.responsable} onChange={e=>setNewAporte(n=>({...n,responsable:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input placeholder="Comentario" value={newAporte.comentario} onChange={e=>setNewAporte(n=>({...n,comentario:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <button onClick={addAporte} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13,padding:"8px",gridColumn:"1/-1"}}>Agregar aporte</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {tab==="interacciones"&&(
+          <div>
+            {(form.interacciones||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin interacciones</div>
+            :[...form.interacciones].reverse().map((i:any,idx:number)=>(
+              <div key={idx} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.primary}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13}}>{i.tipo}</span><span style={{fontSize:12,color:C.muted}}>{i.fecha}</span></div>
+                <div style={{fontSize:13,marginBottom:4}}>{i.desc}</div>
+                <div style={{fontSize:11,color:C.muted}}>👤 {i.responsable}</div>
+              </div>
+            ))}
+            {!readOnly&&(
+              <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`}}>
+                <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nueva interacción</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <input placeholder="Tipo" value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input type="date" value={newInt.fecha} onChange={e=>setNewInt(n=>({...n,fecha:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <input placeholder="Descripción" value={newInt.desc} onChange={e=>setNewInt(n=>({...n,desc:e.target.value}))} style={{...inpS,gridColumn:"1/-1",width:"100%"}}/>
+                  <input placeholder="Responsable" value={newInt.responsable} onChange={e=>setNewInt(n=>({...n,responsable:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <button onClick={addInt} style={{background:C.primary,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600,fontSize:13}}>Agregar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {!readOnly&&(
+        <div style={{padding:"0 24px 24px",display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button onClick={onClose} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
+          <button onClick={()=>onSave(form)} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14}}>Guardar</button>
+        </div>
+      )}
+    </div>
+  </div>;
+}
+
+function CRM({ currentUser, onLogout }: any) {
+  const [contacts,setContacts]=useState<any[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [modal,setModal]=useState<any>(null);
+  const [showUsers,setShowUsers]=useState(false);
+  const [search,setSearch]=useState("");
+  const [filterTipo,setFilterTipo]=useState("Todos");
+  const [filterResp,setFilterResp]=useState("Todos");
+  const [visibleCols,setVisibleCols]=useState(["nombre","tipo","empresa","email","telefono","responsable"]);
+  const [colMenu,setColMenu]=useState(false);
+  const [sortKey,setSortKey]=useState("nombre");
+  const [sortDir,setSortDir]=useState("asc");
+
+  const loadContacts=async()=>{ setLoading(true); try{ const data=await sb("contacts?select=*&order=nombre"); setContacts(data); }catch(e){console.error(e);} setLoading(false); };
+  useEffect(()=>{ loadContacts(); },[]);
+
+  const rol=currentUser.rol;
+  const canCreate=rol==="Admin"||rol==="Editor";
+  const canEdit=rol==="Admin";
+  const canDelete=rol==="Admin";
+
+  const saveContact=async(form:any)=>{
+    if(!form.nombre) return;
+    try {
+      if(form.id) await sb(`contacts?id=eq.${form.id}`,{method:"PATCH",body:{nombre:form.nombre,tipo:form.tipo,empresa:form.empresa,email:form.email,telefono:form.telefono,responsable:form.responsable,notas:form.notas,interacciones:form.interacciones,aportes:form.aportes}});
+      else await sb("contacts",{method:"POST",body:{nombre:form.nombre,tipo:form.tipo||[],empresa:form.empresa||"",email:form.email||"",telefono:form.telefono||"",responsable:form.responsable||"",notas:form.notas||"",interacciones:[],aportes:[]}});
+      await loadContacts();
+    } catch(e){ console.error(e); }
+    setModal(null);
+  };
+  const deleteContact=async(id:number)=>{ if(!window.confirm("¿Eliminar contacto?")) return; await sb(`contacts?id=eq.${id}`,{method:"DELETE"}); setContacts(cs=>cs.filter(c=>c.id!==id)); };
+
+  const exportContactos=()=>{
+    const keys=["nombre","tipo","empresa","email","telefono","responsable","notas"];
+    const h=keys.join(",");
+    const rows=filtered.map((c:any)=>keys.map(k=>`"${(Array.isArray(c[k])?c[k].join(", "):c[k]||"").replace(/"/g,'""')}"`).join(","));
+    const b=new Blob([[h,...rows].join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="contactos.csv";a.click();
+  };
+  const exportAportes=()=>{
+    const h=["Contacto","Tipo","Empresa","Email","Tipo aporte","Monto","Fecha","Responsable","Comentario"].join(",");
+    const rows:string[]=[];
+    contacts.forEach((c:any)=>{ (c.aportes||[]).forEach((a:any)=>{ rows.push([c.nombre,Array.isArray(c.tipo)?c.tipo.join(", "):(c.tipo||""),c.empresa||"",c.email||"",a.tipo||"",a.monto||"",a.fecha||"",a.responsable||"",a.comentario||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")); }); });
+    if(!rows.length) return alert("No hay aportes registrados.");
+    const b=new Blob([[h,...rows].join("\n")],{type:"text/csv"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="aportes.csv";a.click();
+  };
+
+  const sortBy=(k:string)=>{ if(sortKey===k) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortKey(k);setSortDir("asc");} };
+  const sortIcon=(k:string)=>sortKey===k?(sortDir==="asc"?"↑":"↓"):"";
+  const toggleCol=(k:string)=>setVisibleCols(v=>v.includes(k)?v.filter(c=>c!==k):[...v,k]);
+  const allResps=useMemo(()=>[...new Set(contacts.map((c:any)=>c.responsable).filter(Boolean))],[contacts]);
+
+  const filtered=useMemo(()=>{
+    let r=[...contacts];
+    if(search) r=r.filter((c:any)=>[c.nombre,c.empresa,c.email,c.notas].join(" ").toLowerCase().includes(search.toLowerCase()));
+    if(filterTipo!=="Todos") r=r.filter((c:any)=>Array.isArray(c.tipo)?c.tipo.includes(filterTipo):c.tipo===filterTipo);
+    if(filterResp!=="Todos") r=r.filter((c:any)=>c.responsable===filterResp);
+    r.sort((a:any,b:any)=>{const va=a[sortKey]||"",vb=b[sortKey]||"";return sortDir==="asc"?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));});
+    return r;
+  },[contacts,search,filterTipo,filterResp,sortKey,sortDir]);
+
+  const stats={
+    total:contacts.length,
+    donantes:contacts.filter((c:any)=>(Array.isArray(c.tipo)?c.tipo:[c.tipo||""]).some((t:string)=>t.includes("Donante"))).length,
+    voluntarios:contacts.filter((c:any)=>(Array.isArray(c.tipo)?c.tipo:[c.tipo||""]).includes("Voluntario")).length,
+    empresas:contacts.filter((c:any)=>(Array.isArray(c.tipo)?c.tipo:[c.tipo||""]).includes("Empresa / organización")).length,
+  };
+  const shownCols=COLS.filter(c=>visibleCols.includes(c.key));
+
+  return <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:C.text}}>
+    <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 2px 12px #0002"}}>
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <div style={{background:"#fff3",borderRadius:12,padding:"8px 12px",fontSize:24}}>🏠</div>
+        <div><div style={{color:"#fff",fontWeight:800,fontSize:20}}>Casa Familia</div><div style={{color:"#ffffffcc",fontSize:12}}>Directorio de contactos y aportes</div></div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{background:"#fff2",borderRadius:10,padding:"6px 14px",color:"#fff",fontSize:13,display:"flex",alignItems:"center",gap:8}}><span>👤 {currentUser.nombre}</span><TagRol rol={currentUser.rol}/></div>
+        {rol==="Admin"&&<button onClick={()=>setShowUsers(true)} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:9,padding:"8px 14px",cursor:"pointer",fontWeight:600,fontSize:13}}>⚙ Usuarios</button>}
+        <button onClick={onLogout} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:9,padding:"8px 14px",cursor:"pointer",fontWeight:600,fontSize:13}}>Salir</button>
+        {canCreate&&<button onClick={()=>setModal({contact:null})} style={{background:"#fff",color:C.primary,border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:14,cursor:"pointer"}}>＋ Nuevo</button>}
+      </div>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,padding:"20px 28px 0"}}>
+      {[{label:"Total contactos",val:stats.total,icon:"👥",color:C.primary},{label:"Donantes",val:stats.donantes,icon:"💛",color:"#9a7e00"},{label:"Voluntarios",val:stats.voluntarios,icon:"🤝",color:C.green},{label:"Empresas",val:stats.empresas,icon:"🏢",color:C.orange}].map(s=>(
+        <div key={s.label} style={{background:C.card,borderRadius:12,padding:"16px 20px",boxShadow:"0 1px 6px #0001",borderLeft:`4px solid ${s.color}`,display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:26}}>{s.icon}</span><div><div style={{fontSize:24,fontWeight:800,color:s.color}}>{s.val}</div><div style={{fontSize:12,color:C.muted}}>{s.label}</div></div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{padding:"16px 28px",display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+      <input placeholder="🔍  Buscar..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:200,padding:"9px 14px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:13,background:C.card,outline:"none"}}/>
+      <select value={filterTipo} onChange={e=>setFilterTipo(e.target.value)} style={{padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:13,background:C.card,cursor:"pointer"}}>
+        {["Todos",...TIPOS].map(o=><option key={o}>{o}</option>)}
+      </select>
+      <select value={filterResp} onChange={e=>setFilterResp(e.target.value)} style={{padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,fontSize:13,background:C.card,cursor:"pointer"}}>
+        {["Todos",...allResps].map((o:any)=><option key={o}>{o}</option>)}
+      </select>
+      <div style={{position:"relative"}}>
+        <button onClick={()=>setColMenu(v=>!v)} style={{padding:"9px 14px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.muted}}>⚙ Columnas</button>
+        {colMenu&&<div style={{position:"absolute",right:0,top:42,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,zIndex:50,boxShadow:"0 4px 20px #0002",minWidth:200}}>
+          {COLS.filter(c=>!c.always).map(c=><label key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={visibleCols.includes(c.key)} onChange={()=>toggleCol(c.key)}/>{c.label}</label>)}
+        </div>}
+      </div>
+      <button onClick={exportContactos} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.green,fontWeight:600}}>⬇ Contactos</button>
+      <button onClick={exportAportes} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.blue,fontWeight:600}}>⬇ Aportes</button>
+      <span style={{fontSize:12,color:C.muted}}>{filtered.length} resultado{filtered.length!==1?"s":""}</span>
+    </div>
+
+    <div style={{padding:"0 28px 40px",overflowX:"auto"}}>
+      <div style={{background:C.card,borderRadius:14,boxShadow:"0 1px 8px #0001",overflow:"hidden",border:`1px solid ${C.border}`}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:C.soft}}>
+            {shownCols.map(c=><th key={c.key} onClick={()=>sortBy(c.key)} style={{padding:"12px 14px",textAlign:"left",fontWeight:700,color:C.muted,cursor:"pointer",whiteSpace:"nowrap",borderBottom:`1px solid ${C.border}`,userSelect:"none"}}>{c.label} {sortIcon(c.key)}</th>)}
+            <th style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`}}></th>
+          </tr></thead>
+          <tbody>
+            {loading&&<tr><td colSpan={shownCols.length+1} style={{textAlign:"center",padding:40,color:C.muted}}>Cargando...</td></tr>}
+            {!loading&&filtered.length===0&&<tr><td colSpan={shownCols.length+1} style={{textAlign:"center",padding:40,color:C.muted}}>Sin resultados</td></tr>}
+            {!loading&&filtered.map((c:any,i:number)=>(
+              <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"#fff":C.bg+"88",cursor:"pointer"}}
+                onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background=C.soft}
+                onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background=i%2===0?"#fff":C.bg+"88"}>
+                {shownCols.map(col=>(
+                  <td key={col.key} onClick={()=>setModal({contact:c})} style={{padding:"11px 14px",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {col.key==="nombre"?<span style={{fontWeight:600}}>{c[col.key]}</span>:col.key==="tipo"?<TagTipo tipo={c[col.key]}/>:<span>{c[col.key]||"—"}</span>}
+                  </td>
+                ))}
+                <td style={{padding:"6px 10px",whiteSpace:"nowrap"}}>
+                  {canEdit&&<button onClick={e=>{e.stopPropagation();setModal({contact:c});}} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,padding:"4px 6px",color:C.muted}}>✏️</button>}
+                  {canDelete&&<button onClick={e=>{e.stopPropagation();deleteContact(c.id);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:15,padding:"4px 6px",color:C.muted}}>🗑️</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {modal&&<ContactModal contact={modal.contact} onClose={()=>setModal(null)} onSave={saveContact} rol={rol}/>}
+    {showUsers&&<UserPanel currentUser={currentUser} onClose={()=>setShowUsers(false)}/>}
+    {colMenu&&<div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setColMenu(false)}/>}
+  </div>;
+}
+
+export default function App() {
+  const [currentUser,setCurrentUser]=useState<any>(null);
+  if(!currentUser) return <Login onLogin={setCurrentUser}/>;
+  return <CRM currentUser={currentUser} onLogout={()=>setCurrentUser(null)}/>;
+}

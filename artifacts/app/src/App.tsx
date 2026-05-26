@@ -492,6 +492,7 @@ function CRM({ currentUser, onLogout }: any) {
         <div style={{background:"#fff2",borderRadius:10,padding:"6px 14px",color:"#fff",fontSize:13,display:"flex",alignItems:"center",gap:8}}><span>👤 {currentUser.nombre}</span><TagRol rol={currentUser.rol}/></div>
         {rol==="Admin"&&<button onClick={()=>setShowUsers(true)} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:9,padding:"8px 14px",cursor:"pointer",fontWeight:600,fontSize:13}}>⚙ Usuarios</button>}
         <button onClick={onLogout} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:9,padding:"8px 14px",cursor:"pointer",fontWeight:600,fontSize:13}}>Salir</button>
+        {canCreate&&<button onClick={()=>setShowImport(true)} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:14,cursor:"pointer"}}>⬆ Importar</button>}
         {canCreate&&<button onClick={()=>setModal({contact:null})} style={{background:"#fff",color:C.primary,border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,fontSize:14,cursor:"pointer"}}>＋ Nuevo</button>}
       </div>
     </div>
@@ -518,7 +519,6 @@ function CRM({ currentUser, onLogout }: any) {
           {COLS.filter(c=>!c.always).map(c=><label key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={visibleCols.includes(c.key)} onChange={()=>toggleCol(c.key)}/>{c.label}</label>)}
         </div>}
       </div>
-      {canCreate&&<button onClick={()=>setShowImport(true)} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.primary,fontWeight:600}}>⬆ Importar</button>}
       <button onClick={exportContactos} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.green,fontWeight:600}}>⬇ Contactos</button>
       <button onClick={exportAportes} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.blue,fontWeight:600}}>⬇ Aportes</button>
       <span style={{fontSize:12,color:C.muted}}>{filtered.length} resultado{filtered.length!==1?"s":""}</span>

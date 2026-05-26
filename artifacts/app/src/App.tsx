@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+declare const XLSX: any;
 
 const SUPABASE_URL = "https://kbbgslpccncvxqllngaf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RX-EZvhr_hrxn6y_YiF24g__PALlXeK";
@@ -261,6 +262,107 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
   </div>;
 }
 
+const FIELD_MAP: Record<string, string> = {
+  nombre:"nombre", name:"nombre", organizacion:"nombre", org:"nombre",
+  tipo:"tipo", type:"tipo",
+  empresa:"empresa", company:"empresa", cargo:"empresa",
+  email:"email", correo:"email", mail:"email",
+  telefono:"telefono", phone:"telefono", celular:"telefono", movil:"telefono",
+  responsable:"responsable",
+  notas:"notas", notes:"notas", comentarios:"notas", comentario:"notas",
+};
+function normalizeHeader(h: string) {
+  return h.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+}
+function parseRows(rows: any[]): any[] {
+  if (!rows.length) return [];
+  const headers = Object.keys(rows[0]);
+  const mapped: Record<string, string> = {};
+  headers.forEach(h => { const f = FIELD_MAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
+  return rows.map(row => {
+    const c: any = { tipo: [], interacciones: [], aportes: [] };
+    Object.entries(mapped).forEach(([h, field]) => {
+      const v = String(row[h] ?? "").trim();
+      if (!v) return;
+      if (field === "tipo") c.tipo = v.split(/[,;|]/).map((s: string) => s.trim()).filter(Boolean);
+      else c[field] = v;
+    });
+    return c;
+  }).filter(c => c.nombre);
+}
+
+function ImportModal({ onClose, onImport, importing }: { onClose: () => void; onImport: (rows: any[]) => void; importing: boolean }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [err, setErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setFileName(file.name); setErr(""); setRows([]);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        const parsed = parseRows(json);
+        if (!parsed.length) { setErr("No se encontraron filas válidas. Asegúrate de tener una columna 'Nombre'."); return; }
+        setRows(parsed);
+      } catch { setErr("No se pudo leer el archivo. Usa un .xlsx, .xls o .csv válido."); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const PREVIEW_COLS = ["nombre","tipo","empresa","email","telefono","responsable"];
+  const preview = rows.slice(0, 5);
+
+  return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:C.card,borderRadius:16,width:700,maxHeight:"88vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:"#fff",fontWeight:700,fontSize:17}}>📥 Importar contactos</div>
+        <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
+      </div>
+      <div style={{padding:24}}>
+        <div style={{background:C.soft,borderRadius:12,padding:16,marginBottom:18,fontSize:13,color:C.muted}}>
+          <strong style={{color:C.text}}>Formato esperado:</strong> Encabezados reconocidos automáticamente: <code>Nombre</code>, <code>Tipo</code>, <code>Empresa</code>, <code>Email</code>, <code>Teléfono</code>, <code>Responsable</code>, <code>Notas</code>. Acepta <strong>.xlsx</strong>, <strong>.xls</strong> y <strong>.csv</strong>. Múltiples tipos separados por coma.
+        </div>
+        <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
+          <button onClick={()=>fileRef.current?.click()} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+            📂 Elegir archivo
+          </button>
+          <span style={{fontSize:13,color:fileName?C.text:C.muted}}>{fileName||"Ningún archivo seleccionado"}</span>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{display:"none"}}/>
+        </div>
+        {err&&<div style={{color:"#c00",background:"#fee",border:"1px solid #fcc",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:14}}>{err}</div>}
+        {rows.length>0&&<>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:10,color:C.text}}>✅ {rows.length} contacto{rows.length!==1?"s":""} encontrado{rows.length!==1?"s":""} — vista previa (primeras 5 filas):</div>
+          <div style={{overflowX:"auto",marginBottom:18}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:C.soft}}>
+                {PREVIEW_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
+              </tr></thead>
+              <tbody>
+                {preview.map((r,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
+                  {PREVIEW_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}
+                  </td>)}
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+            <button onClick={onClose} disabled={importing} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
+            <button onClick={()=>onImport(rows)} disabled={importing} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,opacity:importing?0.7:1}}>
+              {importing ? "Importando..." : `Importar ${rows.length} contacto${rows.length!==1?"s":""}`}
+            </button>
+          </div>
+        </>}
+      </div>
+    </div>
+  </div>;
+}
+
 function CRM({ currentUser, onLogout }: any) {
   const [contacts,setContacts]=useState<any[]>([]);
   const [loading,setLoading]=useState(true);
@@ -273,6 +375,8 @@ function CRM({ currentUser, onLogout }: any) {
   const [colMenu,setColMenu]=useState(false);
   const [sortKey,setSortKey]=useState("nombre");
   const [sortDir,setSortDir]=useState("asc");
+  const [showImport,setShowImport]=useState(false);
+  const [importing,setImporting]=useState(false);
 
   const loadContacts=async()=>{ setLoading(true); try{ const data=await sb("contacts?select=*&order=nombre"); setContacts(data); }catch(e){console.error(e);} setLoading(false); };
   useEffect(()=>{ loadContacts(); },[]);
@@ -292,6 +396,16 @@ function CRM({ currentUser, onLogout }: any) {
     setModal(null);
   };
   const deleteContact=async(id:number)=>{ if(!window.confirm("¿Eliminar contacto?")) return; await sb(`contacts?id=eq.${id}`,{method:"DELETE"}); setContacts(cs=>cs.filter(c=>c.id!==id)); };
+  const importContacts=async(rows:any[])=>{
+    setImporting(true);
+    try {
+      const payload = rows.map(r=>({nombre:r.nombre,tipo:r.tipo||[],empresa:r.empresa||"",email:r.email||"",telefono:r.telefono||"",responsable:r.responsable||"",notas:r.notas||"",interacciones:[],aportes:[]}));
+      await sb("contacts",{method:"POST",body:payload});
+      await loadContacts();
+      setShowImport(false);
+    } catch(e){ alert("Error al importar. Verifica el formato del archivo."); console.error(e); }
+    setImporting(false);
+  };
 
   const exportContactos=()=>{
     const keys=["nombre","tipo","empresa","email","telefono","responsable","notas"];
@@ -367,6 +481,7 @@ function CRM({ currentUser, onLogout }: any) {
           {COLS.filter(c=>!c.always).map(c=><label key={c.key} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",fontSize:13,cursor:"pointer"}}><input type="checkbox" checked={visibleCols.includes(c.key)} onChange={()=>toggleCol(c.key)}/>{c.label}</label>)}
         </div>}
       </div>
+      {canCreate&&<button onClick={()=>setShowImport(true)} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.primary,fontWeight:600}}>⬆ Importar</button>}
       <button onClick={exportContactos} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.green,fontWeight:600}}>⬇ Contactos</button>
       <button onClick={exportAportes} style={{padding:"9px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,cursor:"pointer",fontSize:13,color:C.blue,fontWeight:600}}>⬇ Aportes</button>
       <span style={{fontSize:12,color:C.muted}}>{filtered.length} resultado{filtered.length!==1?"s":""}</span>
@@ -404,6 +519,7 @@ function CRM({ currentUser, onLogout }: any) {
 
     {modal&&<ContactModal contact={modal.contact} onClose={()=>setModal(null)} onSave={saveContact} rol={rol}/>}
     {showUsers&&<UserPanel currentUser={currentUser} onClose={()=>setShowUsers(false)}/>}
+    {showImport&&<ImportModal onClose={()=>!importing&&setShowImport(false)} onImport={importContacts} importing={importing}/>}
     {colMenu&&<div style={{position:"fixed",inset:0,zIndex:49}} onClick={()=>setColMenu(false)}/>}
   </div>;
 }

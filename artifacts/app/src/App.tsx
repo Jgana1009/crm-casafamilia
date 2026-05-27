@@ -177,7 +177,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
       <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 24px"}}>
         {["datos","aportes","interacciones"].map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{padding:"12px 16px",border:"none",background:"none",cursor:"pointer",fontWeight:600,fontSize:13,color:tab===t?C.primary:C.muted,borderBottom:tab===t?`2px solid ${C.primary}`:"2px solid transparent"}}>
-            {t==="datos"?"📋 Datos":t==="aportes"?"💛 Aportes":"🕐 Historial"}
+            {t==="datos"?"📋 Datos":t==="aportes"?"💛 Aportes":"🕐 Actividad"}
           </button>
         ))}
       </div>
@@ -229,7 +229,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
         )}
         {tab==="interacciones"&&(
           <div>
-            {(form.interacciones||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin interacciones</div>
+            {(form.interacciones||[]).length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:24}}>Sin actividades</div>
             :[...form.interacciones].reverse().map((i:any,idx:number)=>(
               <div key={idx} style={{background:C.soft,borderRadius:10,padding:"12px 16px",marginBottom:10,borderLeft:`3px solid ${C.primary}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13}}>{i.tipo}</span><span style={{fontSize:12,color:C.muted}}>{i.fecha}</span></div>
@@ -239,7 +239,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
             ))}
             {!readOnly&&(
               <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`}}>
-                <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nueva interacción</div>
+                <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nueva actividad</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <input placeholder="Tipo" value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%"}}/>
                   <input type="date" value={newInt.fecha} onChange={e=>setNewInt(n=>({...n,fecha:e.target.value}))} style={{...inpS,width:"100%"}}/>
@@ -352,7 +352,7 @@ function downloadTemplate() {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ["Nombre Contacto","Tipo","Descripción","Fecha","Responsable"],
     ["Ejemplo Persona","Llamada","Llamada de seguimiento","2026-05-27","Admin"],
-  ]), "Historial");
+  ]), "Actividad");
   XLSX.writeFile(wb, "plantilla_casafamilia.xlsx");
 }
 
@@ -375,7 +375,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
         const wb=XLSX.read(ev.target?.result,{type:"array"});
         const cJson=getSheetJson(wb,"Contactos",0);
         const aJson=getSheetJson(wb,"Aportes",1);
-        const hJson=getSheetJson(wb,"Historial",2);
+        const hJson=getSheetJson(wb,"Actividad",2)||getSheetJson(wb,"Historial",2);
         const parsed=parseContactosSheet(cJson);
         if(!parsed.length){setErr("No se encontraron filas válidas en la hoja 'Contactos'. Asegúrate de tener una columna 'Nombre'.");return;}
         setContactRows(parsed);
@@ -401,7 +401,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
       </div>
       <div style={{padding:24}}>
         <div style={{background:C.soft,borderRadius:12,padding:14,marginBottom:18,fontSize:13,color:C.muted,lineHeight:1.6}}>
-          <strong style={{color:C.text}}>Formato esperado:</strong> Archivo <strong>.xlsx</strong> con 3 hojas — <strong>Contactos</strong> (Nombre, Tipo, Detalle, Email, Teléfono, Responsable, Notas) · <strong>Aportes</strong> (Nombre Contacto, Tipo Aporte, Monto, Fecha, Responsable, Comentario) · <strong>Historial</strong> (Nombre Contacto, Tipo, Descripción, Fecha, Responsable).
+          <strong style={{color:C.text}}>Formato esperado:</strong> Archivo <strong>.xlsx</strong> con 3 hojas — <strong>Contactos</strong> (Nombre, Tipo, Detalle, Email, Teléfono, Responsable, Notas) · <strong>Aportes</strong> (Nombre Contacto, Tipo Aporte, Monto, Fecha, Responsable, Comentario) · <strong>Actividad</strong> (Nombre Contacto, Tipo, Descripción, Fecha, Responsable).
           <button onClick={downloadTemplate} style={{marginLeft:10,background:"none",border:`1px solid ${C.primary}`,color:C.primary,borderRadius:6,padding:"3px 10px",cursor:"pointer",fontSize:12,fontWeight:600}}>⬇ Descargar plantilla</button>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
@@ -416,7 +416,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
           <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
             <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{contactRows.length}</strong> contacto{contactRows.length!==1?"s":""}</div>
             <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{aportesRows.length}</strong> aporte{aportesRows.length!==1?"s":""}</div>
-            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{historialRows.length}</strong> historial</div>
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{historialRows.length}</strong> actividad{historialRows.length!==1?"es":""}</div>
             {dupCount>0&&<div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"8px 14px",fontSize:13,color:"#856404"}}>⚠️ <strong>{dupCount}</strong> posible{dupCount!==1?"s":""} duplicado{dupCount!==1?"s":""}</div>}
             <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13,color:C.green,fontWeight:600}}>→ Se importarán <strong>{toImport.length}</strong> contacto{toImport.length!==1?"s":""}</div>
           </div>
@@ -427,7 +427,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
           <div style={{display:"flex",gap:0,marginBottom:0,borderBottom:`2px solid ${C.border}`}}>
             {(["contactos","aportes","historial"] as const).map(t=>(
               <button key={t} onClick={()=>setTab(t)} style={{padding:"8px 20px",border:"none",background:"none",cursor:"pointer",fontWeight:tab===t?700:400,color:tab===t?C.primary:C.muted,borderBottom:tab===t?`2px solid ${C.primary}`:"2px solid transparent",marginBottom:-2,fontSize:13}}>
-                {t==="contactos"?`👤 Contactos (${contactRows.length})`:t==="aportes"?`💛 Aportes (${aportesRows.length})`:`🕐 Historial (${historialRows.length})`}
+                {t==="contactos"?`👤 Contactos (${contactRows.length})`:t==="aportes"?`💛 Aportes (${aportesRows.length})`:`🕐 Actividad (${historialRows.length})`}
               </button>
             ))}
           </div>
@@ -473,7 +473,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={onClose} disabled={importing} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
             <button onClick={()=>onImport({contacts:toImport.map(({_dup,...r})=>r),aportes:aportesRows,historial:historialRows})} disabled={importing||toImport.length===0} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:toImport.length===0?"not-allowed":"pointer",fontWeight:700,fontSize:14,opacity:(importing||toImport.length===0)?0.6:1}}>
-              {importing?"Importando...":toImport.length===0?"Sin contactos nuevos":`Importar ${toImport.length} contacto${toImport.length!==1?"s":""}${aportesRows.length?` + ${aportesRows.length} aportes`:""}${historialRows.length?` + ${historialRows.length} historial`:""}`}
+              {importing?"Importando...":toImport.length===0?"Sin contactos nuevos":`Importar ${toImport.length} contacto${toImport.length!==1?"s":""}${aportesRows.length?` + ${aportesRows.length} aportes`:""}${historialRows.length?` + ${historialRows.length} actividad${historialRows.length!==1?"es":""}`:""}`}
             </button>
           </div>
         </>}

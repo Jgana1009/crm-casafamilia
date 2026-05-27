@@ -241,7 +241,10 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
               <div style={{background:C.bg,borderRadius:12,padding:16,border:`1px solid ${C.border}`}}>
                 <div style={{fontWeight:600,fontSize:13,color:C.muted,marginBottom:10}}>+ Nueva actividad</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <input placeholder="Tipo" value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%"}}/>
+                  <select value={newInt.tipo} onChange={e=>setNewInt(n=>({...n,tipo:e.target.value}))} style={{...inpS,width:"100%",color:newInt.tipo?undefined:C.muted}}>
+                    <option value="">Tipo de actividad *</option>
+                    {["Llamada","Reunión","Email","WhatsApp","Visita","Otro"].map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
                   <input type="date" value={newInt.fecha} onChange={e=>setNewInt(n=>({...n,fecha:e.target.value}))} style={{...inpS,width:"100%"}}/>
                   <input placeholder="Descripción" value={newInt.desc} onChange={e=>setNewInt(n=>({...n,desc:e.target.value}))} style={{...inpS,gridColumn:"1/-1",width:"100%"}}/>
                   <input placeholder="Responsable" value={newInt.responsable} onChange={e=>setNewInt(n=>({...n,responsable:e.target.value}))} style={{...inpS,width:"100%"}}/>

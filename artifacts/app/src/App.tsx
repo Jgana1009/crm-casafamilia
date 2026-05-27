@@ -262,7 +262,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
   </div>;
 }
 
-const FIELD_MAP: Record<string, string> = {
+const CONTACT_FIELD_MAP: Record<string,string> = {
   nombre:"nombre", name:"nombre", organizacion:"nombre", org:"nombre",
   tipo:"tipo", type:"tipo",
   empresa:"empresa", company:"empresa", cargo:"empresa",
@@ -274,72 +274,134 @@ const FIELD_MAP: Record<string, string> = {
 function normalizeHeader(h: string) {
   return h.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 }
-function parseRows(rows: any[]): any[] {
+function parseContactosSheet(rows: any[]): any[] {
   if (!rows.length) return [];
   const headers = Object.keys(rows[0]);
-  const mapped: Record<string, string> = {};
-  headers.forEach(h => { const f = FIELD_MAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
+  const mapped: Record<string,string> = {};
+  headers.forEach(h => { const f = CONTACT_FIELD_MAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
   return rows.map(row => {
-    const c: any = { tipo: [], interacciones: [], aportes: [] };
-    Object.entries(mapped).forEach(([h, field]) => {
-      const v = String(row[h] ?? "").trim();
-      if (!v) return;
-      if (field === "tipo") c.tipo = v.split(/[,;|]/).map((s: string) => s.trim()).filter(Boolean);
+    const c: any = { tipo:[], interacciones:[], aportes:[] };
+    Object.entries(mapped).forEach(([h,field]) => {
+      const v = String(row[h]??"").trim(); if (!v) return;
+      if (field==="tipo") c.tipo = v.split(/[,;|]/).map((s:string)=>s.trim()).filter(Boolean);
       else c[field] = v;
     });
     return c;
   }).filter(c => c.nombre);
 }
-
+function parseAportesSheet(rows: any[]): any[] {
+  if (!rows.length) return [];
+  const AMAP: Record<string,string> = {
+    nombrecontacto:"nombreContacto", contacto:"nombreContacto", nombre:"nombreContacto",
+    tipoaporte:"tipoAporte", tipo:"tipoAporte",
+    monto:"monto", importe:"monto",
+    fecha:"fecha",
+    responsable:"responsable",
+    comentario:"comentario", comentarios:"comentario", notas:"comentario",
+  };
+  const headers = Object.keys(rows[0]);
+  const mapped: Record<string,string> = {};
+  headers.forEach(h => { const f = AMAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
+  return rows.map(row => {
+    const a: any = {};
+    Object.entries(mapped).forEach(([h,field]) => { const v = String(row[h]??"").trim(); if (v) a[field]=v; });
+    return a;
+  }).filter(a => a.nombreContacto);
+}
+function parseHistorialSheet(rows: any[]): any[] {
+  if (!rows.length) return [];
+  const HMAP: Record<string,string> = {
+    nombrecontacto:"nombreContacto", contacto:"nombreContacto", nombre:"nombreContacto",
+    tipo:"tipo",
+    descripcion:"desc", description:"desc", desc:"desc", detalle:"desc",
+    fecha:"fecha",
+    responsable:"responsable",
+  };
+  const headers = Object.keys(rows[0]);
+  const mapped: Record<string,string> = {};
+  headers.forEach(h => { const f = HMAP[normalizeHeader(h)]; if (f) mapped[h] = f; });
+  return rows.map(row => {
+    const h: any = {};
+    Object.entries(mapped).forEach(([hd,field]) => { const v = String(row[hd]??"").trim(); if (v) h[field]=v; });
+    return h;
+  }).filter(h => h.nombreContacto);
+}
+function getSheetJson(wb: any, name: string, fallbackIdx: number) {
+  const ws = wb.Sheets[name] ?? wb.Sheets[wb.SheetNames[fallbackIdx]];
+  return ws ? XLSX.utils.sheet_to_json(ws, {defval:""}) : [];
+}
 function isDuplicate(row: any, existing: any[]): string|null {
   const name = (row.nombre||"").toLowerCase().trim();
   const email = (row.email||"").toLowerCase().trim();
   for (const c of existing) {
-    if ((c.nombre||"").toLowerCase().trim() === name) return "Mismo nombre";
-    if (email && (c.email||"").toLowerCase().trim() === email) return "Mismo email";
+    if ((c.nombre||"").toLowerCase().trim()===name) return "Mismo nombre";
+    if (email && (c.email||"").toLowerCase().trim()===email) return "Mismo email";
   }
   return null;
 }
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Nombre","Tipo","Empresa","Email","Teléfono","Responsable","Notas"],
+    ["Ejemplo Persona","Donante monetario","Empresa SA","email@ejemplo.com","+56912345678","Admin",""],
+  ]), "Contactos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Nombre Contacto","Tipo Aporte","Monto","Fecha","Responsable","Comentario"],
+    ["Ejemplo Persona","Donación mensual","50000","2026-05-27","Admin",""],
+  ]), "Aportes");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["Nombre Contacto","Tipo","Descripción","Fecha","Responsable"],
+    ["Ejemplo Persona","Llamada","Llamada de seguimiento","2026-05-27","Admin"],
+  ]), "Historial");
+  XLSX.writeFile(wb, "plantilla_casafamilia.xlsx");
+}
 
-function ImportModal({ onClose, onImport, importing, existingContacts }: { onClose: () => void; onImport: (rows: any[]) => void; importing: boolean; existingContacts: any[] }) {
-  const [rows, setRows] = useState<any[]>([]);
-  const [fileName, setFileName] = useState("");
-  const [err, setErr] = useState("");
-  const [skipDups, setSkipDups] = useState(true);
-  const fileRef = useRef<HTMLInputElement>(null);
+function ImportModal({ onClose, onImport, importing, existingContacts }: { onClose:()=>void; onImport:(data:{contacts:any[],aportes:any[],historial:any[]})=>void; importing:boolean; existingContacts:any[] }) {
+  const [contactRows,setContactRows]=useState<any[]>([]);
+  const [aportesRows,setAportesRows]=useState<any[]>([]);
+  const [historialRows,setHistorialRows]=useState<any[]>([]);
+  const [tab,setTab]=useState<"contactos"|"aportes"|"historial">("contactos");
+  const [fileName,setFileName]=useState("");
+  const [err,setErr]=useState("");
+  const [skipDups,setSkipDups]=useState(true);
+  const fileRef=useRef<HTMLInputElement>(null);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setFileName(file.name); setErr(""); setRows([]);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
+  const handleFile=(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0]; if(!file) return;
+    setFileName(file.name); setErr(""); setContactRows([]); setAportesRows([]); setHistorialRows([]);
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
       try {
-        const wb = XLSX.read(ev.target?.result, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        const parsed = parseRows(json);
-        if (!parsed.length) { setErr("No se encontraron filas válidas. Asegúrate de tener una columna 'Nombre'."); return; }
-        setRows(parsed);
+        const wb=XLSX.read(ev.target?.result,{type:"array"});
+        const cJson=getSheetJson(wb,"Contactos",0);
+        const aJson=getSheetJson(wb,"Aportes",1);
+        const hJson=getSheetJson(wb,"Historial",2);
+        const parsed=parseContactosSheet(cJson);
+        if(!parsed.length){setErr("No se encontraron filas válidas en la hoja 'Contactos'. Asegúrate de tener una columna 'Nombre'.");return;}
+        setContactRows(parsed);
+        setAportesRows(parseAportesSheet(aJson));
+        setHistorialRows(parseHistorialSheet(hJson));
       } catch { setErr("No se pudo leer el archivo. Usa un .xlsx, .xls o .csv válido."); }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const rowsWithDup = rows.map(r => ({ ...r, _dup: isDuplicate(r, existingContacts) }));
-  const dupCount = rowsWithDup.filter(r => r._dup).length;
-  const toImport = skipDups ? rowsWithDup.filter(r => !r._dup) : rowsWithDup;
-  const PREVIEW_COLS = ["nombre","tipo","empresa","email","telefono","responsable"];
-  const preview = rowsWithDup.slice(0, 8);
+  const rowsWithDup=contactRows.map(r=>({...r,_dup:isDuplicate(r,existingContacts)}));
+  const dupCount=rowsWithDup.filter(r=>r._dup).length;
+  const toImport=skipDups?rowsWithDup.filter(r=>!r._dup):rowsWithDup;
+  const CONTACT_COLS=["nombre","tipo","empresa","email","telefono","responsable"];
+  const hasData=contactRows.length>0;
 
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-    <div style={{background:C.card,borderRadius:16,width:720,maxHeight:"90vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
+    <div style={{background:C.card,borderRadius:16,width:760,maxHeight:"92vh",overflow:"auto",boxShadow:"0 8px 40px #0003"}} onClick={e=>e.stopPropagation()}>
       <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"18px 24px",borderRadius:"16px 16px 0 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{color:"#fff",fontWeight:700,fontSize:17}}>📥 Importar contactos</div>
         <button onClick={onClose} style={{background:"#fff3",border:"none",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:18}}>✕</button>
       </div>
       <div style={{padding:24}}>
-        <div style={{background:C.soft,borderRadius:12,padding:14,marginBottom:18,fontSize:13,color:C.muted}}>
-          <strong style={{color:C.text}}>Formato:</strong> Encabezados reconocidos: <code>Nombre</code>, <code>Tipo</code>, <code>Empresa</code>, <code>Email</code>, <code>Teléfono</code>, <code>Responsable</code>, <code>Notas</code>. Acepta <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong>. Tipos separados por coma.
+        <div style={{background:C.soft,borderRadius:12,padding:14,marginBottom:18,fontSize:13,color:C.muted,lineHeight:1.6}}>
+          <strong style={{color:C.text}}>Formato esperado:</strong> Archivo <strong>.xlsx</strong> con 3 hojas — <strong>Contactos</strong> (Nombre, Tipo, Empresa, Email, Teléfono, Responsable, Notas) · <strong>Aportes</strong> (Nombre Contacto, Tipo Aporte, Monto, Fecha, Responsable, Comentario) · <strong>Historial</strong> (Nombre Contacto, Tipo, Descripción, Fecha, Responsable).
+          <button onClick={downloadTemplate} style={{marginLeft:10,background:"none",border:`1px solid ${C.primary}`,color:C.primary,borderRadius:6,padding:"3px 10px",cursor:"pointer",fontSize:12,fontWeight:600}}>⬇ Descargar plantilla</button>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
           <button onClick={()=>fileRef.current?.click()} style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
@@ -349,49 +411,68 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{display:"none"}}/>
         </div>
         {err&&<div style={{color:"#c00",background:"#fee",border:"1px solid #fcc",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:14}}>{err}</div>}
-        {rows.length>0&&<>
+        {hasData&&<>
           <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}>
-              <strong>{rows.length}</strong> fila{rows.length!==1?"s":""} en el archivo
-            </div>
-            {dupCount>0&&<div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"8px 14px",fontSize:13,color:"#856404"}}>
-              ⚠️ <strong>{dupCount}</strong> posible{dupCount!==1?"s":""} duplicado{dupCount!==1?"s":""}
-            </div>}
-            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13,color:C.green,fontWeight:600}}>
-              → Se importarán <strong>{toImport.length}</strong>
-            </div>
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{contactRows.length}</strong> contacto{contactRows.length!==1?"s":""}</div>
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{aportesRows.length}</strong> aporte{aportesRows.length!==1?"s":""}</div>
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13}}><strong>{historialRows.length}</strong> historial</div>
+            {dupCount>0&&<div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"8px 14px",fontSize:13,color:"#856404"}}>⚠️ <strong>{dupCount}</strong> posible{dupCount!==1?"s":""} duplicado{dupCount!==1?"s":""}</div>}
+            <div style={{background:C.soft,borderRadius:8,padding:"8px 14px",fontSize:13,color:C.green,fontWeight:600}}>→ Se importarán <strong>{toImport.length}</strong> contacto{toImport.length!==1?"s":""}</div>
           </div>
-          {dupCount>0&&<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer",fontSize:13,fontWeight:600,color:C.text}}>
+          {dupCount>0&&<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,cursor:"pointer",fontSize:13,fontWeight:600,color:C.text}}>
             <input type="checkbox" checked={skipDups} onChange={e=>setSkipDups(e.target.checked)} style={{accentColor:C.primary,width:15,height:15}}/>
             Omitir duplicados (mismo nombre o email)
           </label>}
-          <div style={{overflowX:"auto",marginBottom:18}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <div style={{display:"flex",gap:0,marginBottom:0,borderBottom:`2px solid ${C.border}`}}>
+            {(["contactos","aportes","historial"] as const).map(t=>(
+              <button key={t} onClick={()=>setTab(t)} style={{padding:"8px 20px",border:"none",background:"none",cursor:"pointer",fontWeight:tab===t?700:400,color:tab===t?C.primary:C.muted,borderBottom:tab===t?`2px solid ${C.primary}`:"2px solid transparent",marginBottom:-2,fontSize:13}}>
+                {t==="contactos"?`👤 Contactos (${contactRows.length})`:t==="aportes"?`💛 Aportes (${aportesRows.length})`:`🕐 Historial (${historialRows.length})`}
+              </button>
+            ))}
+          </div>
+          <div style={{overflowX:"auto",marginBottom:18,marginTop:0}}>
+            {tab==="contactos"&&<><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:C.soft}}>
                 <th style={{padding:"8px 6px",borderBottom:`1px solid ${C.border}`,color:C.muted,fontWeight:700,width:24}}></th>
-                {PREVIEW_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
+                {CONTACT_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
               </tr></thead>
-              <tbody>
-                {preview.map((r,i)=>{
-                  const isDup=!!r._dup;
-                  const willSkip=skipDups&&isDup;
-                  return <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:isDup?"#fffbea":undefined,opacity:willSkip?0.45:1}}>
-                    <td style={{padding:"6px",textAlign:"center"}}>
-                      {isDup?<span title={r._dup} style={{cursor:"help",fontSize:14}}>⚠️</span>:<span style={{fontSize:14,color:C.green}}>✓</span>}
-                    </td>
-                    {PREVIEW_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                      {k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}
-                    </td>)}
-                  </tr>;
-                })}
-              </tbody>
+              <tbody>{rowsWithDup.slice(0,8).map((r,i)=>{
+                const isDup=!!r._dup; const willSkip=skipDups&&isDup;
+                return <tr key={i} style={{borderBottom:`1px solid ${C.border}`,background:isDup?"#fffbea":undefined,opacity:willSkip?0.45:1}}>
+                  <td style={{padding:"6px",textAlign:"center"}}>{isDup?<span title={r._dup} style={{cursor:"help",fontSize:14}}>⚠️</span>:<span style={{fontSize:14,color:C.green}}>✓</span>}</td>
+                  {CONTACT_COLS.map(k=><td key={k} style={{padding:"7px 10px",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{k==="tipo"?<TagTipo tipo={r.tipo}/>:<span>{r[k]||"—"}</span>}</td>)}
+                </tr>;
+              })}</tbody>
             </table>
-            {rows.length>8&&<div style={{textAlign:"center",padding:"8px",fontSize:12,color:C.muted}}>...y {rows.length-8} fila{rows.length-8!==1?"s":""} más</div>}
+            {contactRows.length>8&&<div style={{textAlign:"center",padding:"8px",fontSize:12,color:C.muted}}>...y {contactRows.length-8} fila{contactRows.length-8!==1?"s":""} más</div>}</>}
+            {tab==="aportes"&&<><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:C.soft}}>{["Nombre Contacto","Tipo Aporte","Monto","Fecha","Responsable","Comentario"].map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}</tr></thead>
+              <tbody>{aportesRows.slice(0,8).map((r,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
+                <td style={{padding:"7px 10px"}}>{r.nombreContacto||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.tipoAporte||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.monto||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.fecha||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.responsable||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.comentario||"—"}</td>
+              </tr>)}</tbody>
+            </table>
+            {aportesRows.length>8&&<div style={{textAlign:"center",padding:"8px",fontSize:12,color:C.muted}}>...y {aportesRows.length-8} fila{aportesRows.length-8!==1?"s":""} más</div>}</>}
+            {tab==="historial"&&<><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:C.soft}}>{["Nombre Contacto","Tipo","Descripción","Fecha","Responsable"].map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}</tr></thead>
+              <tbody>{historialRows.slice(0,8).map((r,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}`}}>
+                <td style={{padding:"7px 10px"}}>{r.nombreContacto||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.tipo||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.desc||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.fecha||"—"}</td>
+                <td style={{padding:"7px 10px"}}>{r.responsable||"—"}</td>
+              </tr>)}</tbody>
+            </table>
+            {historialRows.length>8&&<div style={{textAlign:"center",padding:"8px",fontSize:12,color:C.muted}}>...y {historialRows.length-8} fila{historialRows.length-8!==1?"s":""} más</div>}</>}
           </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
             <button onClick={onClose} disabled={importing} style={{padding:"10px 20px",border:`1px solid ${C.border}`,borderRadius:8,background:"#fff",cursor:"pointer",color:C.muted,fontWeight:600}}>Cancelar</button>
-            <button onClick={()=>onImport(toImport.map(({_dup,...r})=>r))} disabled={importing||toImport.length===0} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:toImport.length===0?"not-allowed":"pointer",fontWeight:700,fontSize:14,opacity:(importing||toImport.length===0)?0.6:1}}>
-              {importing ? "Importando..." : toImport.length===0 ? "Sin contactos nuevos" : `Importar ${toImport.length} contacto${toImport.length!==1?"s":""}`}
+            <button onClick={()=>onImport({contacts:toImport.map(({_dup,...r})=>r),aportes:aportesRows,historial:historialRows})} disabled={importing||toImport.length===0} style={{padding:"10px 24px",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,color:"#fff",border:"none",borderRadius:8,cursor:toImport.length===0?"not-allowed":"pointer",fontWeight:700,fontSize:14,opacity:(importing||toImport.length===0)?0.6:1}}>
+              {importing?"Importando...":toImport.length===0?"Sin contactos nuevos":`Importar ${toImport.length} contacto${toImport.length!==1?"s":""}${aportesRows.length?` + ${aportesRows.length} aportes`:""}${historialRows.length?` + ${historialRows.length} historial`:""}`}
             </button>
           </div>
         </>}
@@ -433,10 +514,25 @@ function CRM({ currentUser, onLogout }: any) {
     setModal(null);
   };
   const deleteContact=async(id:number)=>{ if(!window.confirm("¿Eliminar contacto?")) return; await sb(`contacts?id=eq.${id}`,{method:"DELETE"}); setContacts(cs=>cs.filter(c=>c.id!==id)); };
-  const importContacts=async(rows:any[])=>{
+  const importContacts=async(data:{contacts:any[],aportes:any[],historial:any[]})=>{
     setImporting(true);
     try {
-      const payload = rows.map(r=>({nombre:r.nombre,tipo:r.tipo||[],empresa:r.empresa||"",email:r.email||"",telefono:r.telefono||"",responsable:r.responsable||"",notas:r.notas||"",interacciones:[],aportes:[]}));
+      const aportesMap:Record<string,any[]>={};
+      data.aportes.forEach(a=>{
+        const key=(a.nombreContacto||"").toLowerCase().trim();
+        if(!aportesMap[key]) aportesMap[key]=[];
+        aportesMap[key].push({id:Date.now()+Math.random(),tipo:a.tipoAporte||"",monto:a.monto||"",fecha:a.fecha||"",responsable:a.responsable||"",comentario:a.comentario||""});
+      });
+      const historialMap:Record<string,any[]>={};
+      data.historial.forEach(h=>{
+        const key=(h.nombreContacto||"").toLowerCase().trim();
+        if(!historialMap[key]) historialMap[key]=[];
+        historialMap[key].push({fecha:h.fecha||"",tipo:h.tipo||"",desc:h.desc||"",responsable:h.responsable||""});
+      });
+      const payload=data.contacts.map(r=>{
+        const key=(r.nombre||"").toLowerCase().trim();
+        return {nombre:r.nombre,tipo:r.tipo||[],empresa:r.empresa||"",email:r.email||"",telefono:r.telefono||"",responsable:r.responsable||"",notas:r.notas||"",interacciones:historialMap[key]||[],aportes:aportesMap[key]||[]};
+      });
       await sb("contacts",{method:"POST",body:payload});
       await loadContacts();
       setShowImport(false);

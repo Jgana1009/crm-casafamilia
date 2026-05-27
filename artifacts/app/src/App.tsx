@@ -24,7 +24,7 @@ const TIPOS = ["Donante monetario","Donante en especie","Voluntario","Proveedor"
 const COLS = [
   { key:"nombre", label:"Nombre / Org.", always:true },
   { key:"tipo", label:"Tipo" },
-  { key:"empresa", label:"Empresa / Cargo" },
+  { key:"empresa", label:"Detalle" },
   { key:"email", label:"Email" },
   { key:"telefono", label:"Teléfono" },
   { key:"responsable", label:"Responsable" },
@@ -189,7 +189,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
               <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Tipo de contacto</label>
               <MultiSelect value={form.tipo} options={TIPOS} onChange={(v:any)=>set("tipo",v)} disabled={readOnly}/>
             </div>
-            {fld("empresa","Empresa / Cargo")}{fld("email","Email","email")}{fld("telefono","Teléfono")}{fld("responsable","Responsable")}
+            {fld("empresa","Detalle")}{fld("email","Email","email")}{fld("telefono","Teléfono")}{fld("responsable","Responsable")}
             <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:4}}>
               <label style={{fontSize:12,fontWeight:600,color:C.muted}}>Notas</label>
               <textarea disabled={readOnly} value={form.notas||""} onChange={e=>set("notas",e.target.value)} rows={3} style={{...iS,resize:"vertical"}}/>
@@ -265,7 +265,7 @@ function ContactModal({ contact, onClose, onSave, rol }: any) {
 const CONTACT_FIELD_MAP: Record<string,string> = {
   nombre:"nombre", name:"nombre", organizacion:"nombre", org:"nombre",
   tipo:"tipo", type:"tipo",
-  empresa:"empresa", company:"empresa", cargo:"empresa",
+  empresa:"empresa", company:"empresa", cargo:"empresa", detalle:"empresa",
   email:"email", correo:"email", mail:"email",
   telefono:"telefono", phone:"telefono", celular:"telefono", movil:"telefono",
   responsable:"responsable",
@@ -342,8 +342,8 @@ function isDuplicate(row: any, existing: any[]): string|null {
 function downloadTemplate() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ["Nombre","Tipo","Empresa","Email","Teléfono","Responsable","Notas"],
-    ["Ejemplo Persona","Donante monetario","Empresa SA","email@ejemplo.com","+56912345678","Admin",""],
+    ["Nombre","Tipo","Detalle","Email","Teléfono","Responsable","Notas"],
+    ["Ejemplo Persona","Donante monetario","Psicólogo","email@ejemplo.com","+56912345678","Admin",""],
   ]), "Contactos");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ["Nombre Contacto","Tipo Aporte","Monto","Fecha","Responsable","Comentario"],
@@ -390,6 +390,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
   const dupCount=rowsWithDup.filter(r=>r._dup).length;
   const toImport=skipDups?rowsWithDup.filter(r=>!r._dup):rowsWithDup;
   const CONTACT_COLS=["nombre","tipo","empresa","email","telefono","responsable"];
+  const CONTACT_COL_LABELS:Record<string,string>={nombre:"nombre",tipo:"tipo",empresa:"Detalle",email:"email",telefono:"telefono",responsable:"responsable"};
   const hasData=contactRows.length>0;
 
   return <div style={{position:"fixed",inset:0,background:"#0006",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
@@ -400,7 +401,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
       </div>
       <div style={{padding:24}}>
         <div style={{background:C.soft,borderRadius:12,padding:14,marginBottom:18,fontSize:13,color:C.muted,lineHeight:1.6}}>
-          <strong style={{color:C.text}}>Formato esperado:</strong> Archivo <strong>.xlsx</strong> con 3 hojas — <strong>Contactos</strong> (Nombre, Tipo, Empresa, Email, Teléfono, Responsable, Notas) · <strong>Aportes</strong> (Nombre Contacto, Tipo Aporte, Monto, Fecha, Responsable, Comentario) · <strong>Historial</strong> (Nombre Contacto, Tipo, Descripción, Fecha, Responsable).
+          <strong style={{color:C.text}}>Formato esperado:</strong> Archivo <strong>.xlsx</strong> con 3 hojas — <strong>Contactos</strong> (Nombre, Tipo, Detalle, Email, Teléfono, Responsable, Notas) · <strong>Aportes</strong> (Nombre Contacto, Tipo Aporte, Monto, Fecha, Responsable, Comentario) · <strong>Historial</strong> (Nombre Contacto, Tipo, Descripción, Fecha, Responsable).
           <button onClick={downloadTemplate} style={{marginLeft:10,background:"none",border:`1px solid ${C.primary}`,color:C.primary,borderRadius:6,padding:"3px 10px",cursor:"pointer",fontSize:12,fontWeight:600}}>⬇ Descargar plantilla</button>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:18}}>
@@ -434,7 +435,7 @@ function ImportModal({ onClose, onImport, importing, existingContacts }: { onClo
             {tab==="contactos"&&<><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:C.soft}}>
                 <th style={{padding:"8px 6px",borderBottom:`1px solid ${C.border}`,color:C.muted,fontWeight:700,width:24}}></th>
-                {CONTACT_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{k}</th>)}
+                {CONTACT_COLS.map(k=><th key={k} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:C.muted,borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{CONTACT_COL_LABELS[k]||k}</th>)}
               </tr></thead>
               <tbody>{rowsWithDup.slice(0,8).map((r,i)=>{
                 const isDup=!!r._dup; const willSkip=skipDups&&isDup;
@@ -542,13 +543,13 @@ function CRM({ currentUser, onLogout }: any) {
 
   const exportContactos=()=>{
     const keys=["nombre","tipo","empresa","email","telefono","responsable","notas"];
-    const h=keys.join(",");
+    const h=["nombre","tipo","Detalle","email","telefono","responsable","notas"].join(",");
     const rows=filtered.map((c:any)=>keys.map(k=>`"${(Array.isArray(c[k])?c[k].join(", "):c[k]||"").replace(/"/g,'""')}"`).join(","));
     const b=new Blob([[h,...rows].join("\n")],{type:"text/csv"});
     const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="contactos.csv";a.click();
   };
   const exportAportes=()=>{
-    const h=["Contacto","Tipo","Empresa","Email","Tipo aporte","Monto","Fecha","Responsable","Comentario"].join(",");
+    const h=["Contacto","Tipo","Detalle","Email","Tipo aporte","Monto","Fecha","Responsable","Comentario"].join(",");
     const rows:string[]=[];
     contacts.forEach((c:any)=>{ (c.aportes||[]).forEach((a:any)=>{ rows.push([c.nombre,Array.isArray(c.tipo)?c.tipo.join(", "):(c.tipo||""),c.empresa||"",c.email||"",a.tipo||"",a.monto||"",a.fecha||"",a.responsable||"",a.comentario||""].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")); }); });
     if(!rows.length) return alert("No hay aportes registrados.");

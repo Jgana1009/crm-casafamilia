@@ -1,0 +1,14 @@
+[build]
+  base    = "artifacts/app"
+  command = "pnpm install && pnpm run build"
+  publish = "dist/public"
+
+[build.environment]
+  PORT      = "3000"
+  BASE_PATH = "/"
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

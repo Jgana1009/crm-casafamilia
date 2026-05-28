@@ -74,7 +74,7 @@ function Login({ onLogin }: any) {
   const iS:any={padding:"9px 12px",borderRadius:9,border:`1px solid ${C.border}`,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box"};
   return <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primary},${C.primary2})`,display:"flex",alignItems:"center",justifyContent:"center"}}>
     <div style={{background:C.card,borderRadius:20,padding:40,width:360,boxShadow:"0 12px 48px #0003"}}>
-      <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:48}}><img src="/logo-09.png" style={{width:160,height:160,objectFit:"contain",display:"block",margin:"0 auto"}} /></div><div style={{fontWeight:800,fontSize:22,color:C.primary}}>Casa Familia</div><div style={{color:C.muted,fontSize:13,marginTop:4}}>Directorio de contactos</div></div>
+      <div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:48}}><img src="/logo-09.png" style={{width:200,height:200,objectFit:"contain",display:"block",margin:"0 auto",marginBottom:8}} /></div><div style={{fontWeight:800,fontSize:22,color:C.primary}}>Casa Familia</div><div style={{color:C.muted,fontSize:13,marginTop:4}}>Directorio de contactos</div></div>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Usuario</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="Tu usuario" style={iS}/></div>
         <div><label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:4}}>Contraseña</label><input type="password" value={p} onChange={e=>setP(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••" style={iS}/></div>
@@ -582,7 +582,7 @@ function CRM({ currentUser, onLogout }: any) {
   return <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:C.text}}>
     <div style={{background:`linear-gradient(135deg,${C.primary},${C.primary2})`,padding:"16px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 2px 12px #0002"}}>
       <div style={{display:"flex",alignItems:"center",gap:14}}>
-        <div style={{background:"#fff3",borderRadius:12,padding:"8px 12px",fontSize:24}}><img src="/logo-09.png" style={{width:160,height:160,objectFit:"contain",display:"block",margin:"0 auto"}} /></div>
+        <div style={{background:"#fff3",borderRadius:12,padding:"8px 12px",fontSize:24}}><img src="/logo-09.png" style={{width:200,height:200,objectFit:"contain",display:"block",margin:"0 auto",marginBottom:8}} /></div>
         <div><div style={{color:"#fff",fontWeight:800,fontSize:20}}>Casa Familia</div><div style={{color:"#ffffffcc",fontSize:12}}>Directorio de contactos y aportes</div></div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
